@@ -5,6 +5,7 @@ from floci.config.services import (
     AppConfigConfig,
     AppConfigDataConfig,
     AthenaConfig,
+    BackupConfig,
     BedrockRuntimeConfig,
     CloudFormationConfig,
     CloudWatchLogsConfig,
@@ -31,6 +32,7 @@ from floci.config.services import (
     PipesConfig,
     RdsConfig,
     ResourceGroupsTaggingConfig,
+    Route53Config,
     S3Config,
     SchedulerConfig,
     SecretsManagerConfig,
@@ -40,7 +42,10 @@ from floci.config.services import (
     SqsConfig,
     SsmConfig,
     StepFunctionsConfig,
+    TextractConfig,
+    TransferFamilyConfig,
 )
+from floci.config.top_level import StorageConfig, TlsConfig
 
 __all__ = [
     "AcmConfig",
@@ -49,6 +54,7 @@ __all__ = [
     "AppConfigConfig",
     "AppConfigDataConfig",
     "AthenaConfig",
+    "BackupConfig",
     "BedrockRuntimeConfig",
     "CloudFormationConfig",
     "CloudWatchLogsConfig",
@@ -75,6 +81,7 @@ __all__ = [
     "PipesConfig",
     "RdsConfig",
     "ResourceGroupsTaggingConfig",
+    "Route53Config",
     "S3Config",
     "SchedulerConfig",
     "SecretsManagerConfig",
@@ -84,4 +91,8 @@ __all__ = [
     "SqsConfig",
     "SsmConfig",
     "StepFunctionsConfig",
+    "StorageConfig",
+    "TextractConfig",
+    "TlsConfig",
+    "TransferFamilyConfig",
 ]
