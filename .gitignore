@@ -31,4 +31,4 @@ htmlcov/
 # macOS
 .DS_Store
 
-local/
+/local/

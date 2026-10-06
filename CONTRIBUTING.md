@@ -3,7 +3,8 @@
 Thanks for contributing. Issues, reviews, docs, and pull requests are all welcome, and you
 don't need permission to start. Before you dig in, a quick read of the project
 [GOVERNANCE.md](https://github.com/floci-io/.github/blob/main/GOVERNANCE.md) explains how
-decisions are made and how contributors grow into Maintainers over time.
+decisions are made and how contributors grow into Maintainers over time. Everyone taking part is
+expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Developer Certificate of Origin (DCO) sign-off
 
@@ -36,8 +37,9 @@ Why Floci uses the DCO and not a CLA is explained in the
 
 ## Running tests locally
 
-Set up a development environment with [uv](https://docs.astral.sh/uv/) (or
-`pip install -e ".[dev]"`):
+Set up a development environment with [uv](https://docs.astral.sh/uv/). The commands below run the
+tools from the project environment with `uv run`; with pip instead, run `pip install -e ".[dev]"`
+inside an activated virtualenv and drop the `uv run` prefix.
 
 ```bash
 uv sync --extra dev
@@ -46,22 +48,22 @@ uv sync --extra dev
 Lint, format check and type check, as CI runs them:
 
 ```bash
-ruff check .
-ruff format --check .
-mypy floci
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy floci
 ```
 
 Unit tests need no Docker:
 
 ```bash
-pytest -m "not integration" -v
+uv run pytest -m "not integration" -v
 ```
 
 Integration tests start a real Floci container, so they need Docker:
 
 ```bash
 docker pull floci/floci:latest
-pytest -m integration -v
+uv run pytest -m integration -v
 ```
 
 ## Pull Request Limits and Review Bandwidth
@@ -81,4 +83,8 @@ Once your current pull requests are reviewed, merged, or closed, you are welcome
 - 🗣️ **[GitHub Discussions](https://github.com/orgs/floci-io/discussions)**: feature ideas, design tradeoffs, and proposals.
 
 By contributing, you agree to abide by the project
-[Code of Conduct](https://github.com/floci-io/.github/blob/main/CODE_OF_CONDUCT.md).
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Reporting Security Issues
+
+Please do **not** open public issues for security vulnerabilities. See [SECURITY.md](SECURITY.md) for how to report them privately.
