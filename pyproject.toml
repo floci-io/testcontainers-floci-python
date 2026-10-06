@@ -9,7 +9,7 @@ description = "Testcontainers module for Floci — the open-source local AWS emu
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-keywords = ["testcontainers", "floci", "aws", "localstack", "testing"]
+keywords = ["testcontainers", "floci", "aws", "testing"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
