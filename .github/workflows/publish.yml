@@ -3,6 +3,18 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
+  # Re-publish an existing release tag with the current workflow, for example after a failed
+  # publish. The tagged source is built and published; the workflow file comes from the
+  # branch the dispatch runs on.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish (for example 0.2.0)"
+        required: true
+      testpypi:
+        description: "Also publish to TestPyPI (for a pre-release tag)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -14,6 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A dispatch input is resolved strictly as a tag: a branch name or SHA fails here.
+          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -52,7 +67,7 @@ jobs:
 
   publish-testpypi:
     name: Publish to TestPyPI (pre-release)
-    if: github.event.release.prerelease
+    if: github.event.release.prerelease || inputs.testpypi
     needs: build
     runs-on: ubuntu-latest
     environment:

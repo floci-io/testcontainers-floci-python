@@ -1,23 +1,32 @@
 name: Semantic Release
 
-# Runs semantic-release when a maintainer pushes to a release/x.y branch.
-# semantic-release analyses commits since the last tag, bumps the version,
-# updates CHANGELOG.md + pyproject.toml, commits them, and pushes a vX.Y.Z tag.
-# That tag push then triggers the publish.yml PyPI workflow.
+# Runs semantic-release on every push to main that touches the package. It analyses the
+# Conventional Commits since the last X.Y.Z tag, decides the bump (none for docs/chore/ci),
+# updates CHANGELOG.md + pyproject.toml, commits them, pushes the tag and creates the GitHub
+# release. That release triggers publish.yml, which publishes to PyPI via OIDC.
+#
+# Tags have no v prefix (tagFormat "${version}"). 0.2.0 was released by hand on main (the
+# earlier 0.1.x tags live only on the retired release/0.1.x branch), so releases continue
+# from there in 0.x.
 #
 # Required secrets: GH_TOKEN (PAT with contents: write)
 
 on:
   push:
     branches:
-      - 'release/[0-9]+.x'
-      - 'release/[0-9]+.[0-9]+.x'
+      - main
     paths:
       - 'floci/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.releaserc.json'
       - '.github/workflows/semver.yml'
+
+# One release at a time: semantic-release pushes a release commit and a tag, so overlapping
+# runs from merges close together would race. Queue them; never cancel a release mid-way.
+concurrency:
+  group: semantic-release
+  cancel-in-progress: false
 
 permissions:
   contents: write
