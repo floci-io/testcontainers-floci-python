@@ -19,7 +19,8 @@ from floci.aws.config import (
     RdsConfig,
     S3Config,
 )
-from floci.core import FlociBaseContainer
+from floci.core import CloudDescriptor, FlociBaseContainer
+from tests.images import TEST_IMAGE
 
 
 def without_socket_services() -> FlociContainer:
@@ -141,7 +142,7 @@ def test_fluent_core_methods_keep_the_aws_type() -> None:
 def test_reset_wipes_state_and_keeps_serving() -> None:
     import boto3
 
-    with FlociContainer() as floci:
+    with FlociContainer(TEST_IMAGE) as floci:
         sqs = boto3.client(
             "sqs",
             endpoint_url=floci.get_endpoint(),
@@ -155,3 +156,10 @@ def test_reset_wipes_state_and_keeps_serving() -> None:
 
         assert sqs.list_queues().get("QueueUrls", []) == []
         sqs.create_queue(QueueName="after-reset")
+
+
+def test_descriptor_keeps_its_positional_fields() -> None:
+    # New descriptor fields go last, so callers passing the earlier ones positionally keep working.
+    d = CloudDescriptor("x", "img", 1, "X_", "/h", None, "LOG", (), {"K": "v"})
+    assert d.default_env == {"K": "v"}
+    assert d.host_settings == ()

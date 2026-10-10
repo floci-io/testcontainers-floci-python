@@ -66,11 +66,14 @@ class CloudDescriptor:
     socket_services: tuple[SocketService, ...] = ()
     """Services that need the host Docker socket (see :class:`SocketService`)."""
 
-    host_settings: tuple[HostSetting, ...] = ()
-    """Settings pointed at the Docker host at start, unless set or their service is disabled."""
-
     default_env: Mapping[str, str] = field(default_factory=dict)
     """Settings every container of this cloud needs, applied first so callers can override them."""
+
+    host_settings: tuple[HostSetting, ...] = ()
+    """Settings pointed at the Docker host at start, unless set or their service is disabled.
+
+    Last, so it does not shift the positions of the fields before it.
+    """
 
     @property
     def network_env(self) -> str:
