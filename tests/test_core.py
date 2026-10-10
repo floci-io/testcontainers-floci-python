@@ -39,6 +39,8 @@ def without_socket_services() -> FlociContainer:
         RdsConfig(enabled=False),
     ):
         c.with_service_config(config)
+    # Neptune has no typed config yet; it is switched off through its env var.
+    c.with_env(AWS.service_env("NEPTUNE", "ENABLED"), "false")
     return c
 
 
