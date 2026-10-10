@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import urllib.request
 import uuid
-from typing import Any, ClassVar, Protocol
+from typing import Any, ClassVar, Protocol, TypeVar
 
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
@@ -13,6 +13,9 @@ from testcontainers.core.wait_strategies import HttpWaitStrategy
 from floci.core.descriptor import CloudDescriptor
 
 DOCKER_SOCKET = "/var/run/docker.sock"
+
+_C = TypeVar("_C", bound="FlociBaseContainer")
+"""The concrete container type, so fluent calls keep it (a FlociContainer stays one)."""
 
 
 class ServiceConfig(Protocol):
@@ -52,7 +55,7 @@ class FlociBaseContainer(DockerContainer):
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def start(self) -> FlociBaseContainer:
+    def start(self: _C) -> _C:
         d = self.DESCRIPTOR
         if self.needs_docker_socket():
             self.with_volume_mapping(DOCKER_SOCKET, DOCKER_SOCKET, "rw")
@@ -94,7 +97,7 @@ class FlociBaseContainer(DockerContainer):
     # Configuration
     # ------------------------------------------------------------------
 
-    def with_service_config(self, config: ServiceConfig) -> FlociBaseContainer:
+    def with_service_config(self: _C, config: ServiceConfig) -> _C:
         """Apply a service config: its env vars, and its ports if it exposes any."""
         config.apply_to(self)
         apply_ports = getattr(config, "apply_exposed_ports", None)
@@ -102,7 +105,7 @@ class FlociBaseContainer(DockerContainer):
             apply_ports(self)
         return self
 
-    def with_docker_socket(self, enabled: bool) -> FlociBaseContainer:
+    def with_docker_socket(self: _C, enabled: bool) -> _C:
         """Force the host Docker socket on or off, overriding detection.
 
         By default it is mounted only while an enabled, non-mocked service spawns sibling
@@ -118,7 +121,7 @@ class FlociBaseContainer(DockerContainer):
             return self._docker_socket
         return self.DESCRIPTOR.docker_socket_required(self.env)
 
-    def with_dedicated_network(self) -> FlociBaseContainer:
+    def with_dedicated_network(self: _C) -> _C:
         """Create an isolated Docker network shared with the containers the emulator spawns."""
         network_name = f"floci-{uuid.uuid4().hex[:8]}"
         self._dedicated_network = network_name
@@ -126,12 +129,12 @@ class FlociBaseContainer(DockerContainer):
         self.with_env(self.DESCRIPTOR.network_env, network_name)
         return self
 
-    def with_resource_namespace(self, namespace: str) -> FlociBaseContainer:
+    def with_resource_namespace(self: _C, namespace: str) -> _C:
         """Override the generated namespace that prefixes sibling container names."""
         self.with_env(self.DESCRIPTOR.resource_namespace_env, namespace)
         return self
 
-    def with_log_level(self, level: str) -> FlociBaseContainer:
+    def with_log_level(self: _C, level: str) -> _C:
         """Set the emulator log level (e.g. DEBUG, INFO, WARN, ERROR)."""
         self.with_env(self.DESCRIPTOR.log_level_env, level)
         return self

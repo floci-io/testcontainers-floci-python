@@ -76,6 +76,7 @@ AWS = CloudDescriptor(
         SocketService("ELASTICACHE"),
         SocketService("LAMBDA"),
         SocketService("MSK", mockable=True),
+        SocketService("NEPTUNE"),
         SocketService("OPENSEARCH", mockable=True),
         SocketService("RDS"),
     ),

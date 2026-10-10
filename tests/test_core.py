@@ -124,3 +124,30 @@ def test_resource_namespace_is_unique_and_overridable() -> None:
 def test_log_level_uses_the_cloud_env_var() -> None:
     c = FlociContainer().with_log_level("DEBUG")
     assert c.env["QUARKUS_LOG_CATEGORY__IO_GITHUB_HECTORVENT__LEVEL"] == "DEBUG"
+
+
+def test_fluent_core_methods_keep_the_aws_type() -> None:
+    # The core's with_* methods return the concrete container, so AWS methods chain after them.
+    c = FlociContainer().with_dedicated_network().with_log_level("INFO").with_region("eu-west-1")
+    assert isinstance(c, FlociContainer)
+    assert c.get_region() == "eu-west-1"
+
+
+@pytest.mark.integration
+def test_reset_wipes_state_and_keeps_serving() -> None:
+    import boto3
+
+    with FlociContainer() as floci:
+        sqs = boto3.client(
+            "sqs",
+            endpoint_url=floci.get_endpoint(),
+            region_name=floci.get_region(),
+            aws_access_key_id=floci.get_access_key(),
+            aws_secret_access_key=floci.get_secret_key(),
+        )
+        sqs.create_queue(QueueName="before-reset")
+
+        floci.reset()
+
+        assert sqs.list_queues().get("QueueUrls", []) == []
+        sqs.create_queue(QueueName="after-reset")
