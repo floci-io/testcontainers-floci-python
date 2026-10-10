@@ -1132,7 +1132,7 @@ wheels = [
 
 [[package]]
 name = "testcontainers-floci"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "testcontainers", version = "4.13.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9.2'" },
