@@ -278,11 +278,32 @@ container = (
 | `with_secret_key(str)`           | Sets the secret key returned by `get_secret_key()` (default: `test`)                          |
 | `with_log_level(str)`            | Sets the Floci log level (e.g. `DEBUG`, `INFO`, `WARN`, `ERROR`)                              |
 | `with_dedicated_network()`       | Creates a dedicated Docker network shared by Floci and its sibling containers (RDS, Lambda, …) |
+| `with_docker_socket(bool)`       | Forces the host Docker socket on or off, overriding detection (see below)                     |
+| `with_resource_namespace(str)`   | Overrides the generated prefix of sibling container names                                     |
 | `with_tls_config(TlsConfig)`     | Configures TLS/HTTPS                                                                          |
 | `with_storage_config(StorageConfig)` | Configures persistent storage and volume behaviour                                    |
 
-The host Docker socket (`/var/run/docker.sock`) is mounted into the container so that Docker-backed services
-(RDS, Lambda, ElastiCache, …) can start their sibling containers.
+#### Docker socket
+
+Docker-backed services (Lambda, RDS, ElastiCache, ECS, EC2, EKS, ECR, MSK, OpenSearch, Athena, CodeBuild,
+Neptune) start sibling containers and need the host Docker socket (`/var/run/docker.sock`). It is mounted only while at least one
+of them is enabled and not in `mock` mode, decided from the final environment when the container starts. All
+services are enabled by default, so a default container gets the socket. Use `with_docker_socket(False)` on hosts
+where the socket cannot be mounted (rootless Podman with SELinux, some CI sandboxes), or `with_docker_socket(True)`
+to always mount it.
+
+Each container also gets a unique `FLOCI_DOCKER_RESOURCE_NAMESPACE` (`tc-…`), so sibling containers of parallel
+test runs never collide by name.
+
+#### Resetting state
+
+`reset()` wipes all emulator state (buckets, queues, tables, …) without restarting the container, which is
+handy when one container is shared across tests.
+
+#### Module layout
+
+The AWS module lives in `floci.aws` (`from floci.aws import FlociContainer`, `from floci.aws.config import
+S3Config`). The shorter `floci` and `floci.config` imports used throughout this README keep working as aliases.
 
 ### Connection details
 

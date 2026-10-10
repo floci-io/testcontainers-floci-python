@@ -24,7 +24,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-    "testcontainers>=4.0.0",
+    "testcontainers>=4.13.0",
 ]
 
 [project.optional-dependencies]
