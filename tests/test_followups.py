@@ -32,6 +32,10 @@ def test_rds_endpoint_host_is_emitted_only_when_set() -> None:
     RdsConfig(endpoint_host="rds.example.com").apply_to(target)
     assert target.env["FLOCI_SERVICES_RDS_ENDPOINT_HOST"] == "rds.example.com"
 
+    # The latest config wins: one without endpoint_host drops the earlier host.
+    RdsConfig().apply_to(target)
+    assert "FLOCI_SERVICES_RDS_ENDPOINT_HOST" not in target.env
+
 
 def test_host_settings_skip_disabled_or_explicit_services() -> None:
     c = FlociContainer().with_service_config(RdsConfig(enabled=False))

@@ -359,6 +359,10 @@ class RdsConfig:
         _env(c, "FLOCI_SERVICES_RDS_ENABLED", self.enabled)
         if self.endpoint_host:
             _env(c, "FLOCI_SERVICES_RDS_ENDPOINT_HOST", self.endpoint_host)
+        else:
+            # The latest config wins: drop a host an earlier config set, so the Docker-host
+            # default applies.
+            c.env.pop("FLOCI_SERVICES_RDS_ENDPOINT_HOST", None)
         _env(c, "FLOCI_SERVICES_RDS_PROXY_BASE_PORT", self.proxy_base_port)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE", self.default_postgres_image)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_MYSQL_IMAGE", self.default_mysql_image)
