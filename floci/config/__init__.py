@@ -1,4 +1,6 @@
-from floci.config.services import (
+"""Alias of :mod:`floci.aws.config`, kept so existing imports keep working."""
+
+from floci.aws.config import (
     AcmConfig,
     ApiGatewayConfig,
     ApiGatewayV2Config,
@@ -42,10 +44,11 @@ from floci.config.services import (
     SqsConfig,
     SsmConfig,
     StepFunctionsConfig,
+    StorageConfig,
     TextractConfig,
+    TlsConfig,
     TransferFamilyConfig,
 )
-from floci.config.top_level import StorageConfig, TlsConfig
 
 __all__ = [
     "AcmConfig",

@@ -54,7 +54,8 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - **Fluent API**: `FlociContainer` methods return `self` typed as `"FlociContainer"` so callers can chain configuration calls.
 - **No bare `except`**: catch specific exception types. Use `Exception` only as a last resort and always bind it (`except Exception as exc`).
 - **No mutable default arguments**: use `None` and assign inside the function.
-- **Dataclasses for config**: service configuration lives in `floci/config/services.py` as `@dataclass` classes, each with an `apply_to(container)` method. Keep them in that file.
+- **Layout**: `floci/core/` is the cloud-independent part (`CloudDescriptor`, `FlociBaseContainer`: readiness, Docker socket detection, network, namespace, log level, reset). Each cloud is a package on top of it: `floci/aws/` (`container.py` with the `AWS` descriptor and `FlociContainer`, `config/services.py`, `config/top_level.py`). `floci/__init__.py`, `floci/container.py` and `floci/config/` are compatibility aliases of `floci.aws`; keep them re-exporting, never put code there.
+- **Dataclasses for config**: AWS service configuration lives in `floci/aws/config/services.py` as `@dataclass` classes, each with an `apply_to(container)` method (and `apply_exposed_ports` when the service publishes ports). Keep them in that file.
 - Do not use `os.path`; prefer `pathlib` instead`
 
 ## Testing conventions
@@ -66,7 +67,10 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 
 ## Adding a new AWS service
 
-1. Add a `@dataclass` for it in `floci/config/services.py` following the existing pattern.
-2. Export it from `floci/config/__init__.py`.
-3. Add a `with_<service>_config` method to `FlociContainer` in `floci/container.py`.
-4. Add a unit test in `tests/test_container.py` that calls the new method without starting Docker.
+1. Add a `@dataclass` for it in `floci/aws/config/services.py` following the existing pattern.
+2. Export it from `floci/aws/config/__init__.py`, and from the `floci/config/` aliases.
+3. Add a `with_<service>_config` method to `FlociContainer` in `floci/aws/container.py` that calls
+   `self.with_service_config(config)`.
+4. If the service spawns sibling containers, add a `SocketService` to the `AWS` descriptor's
+   `socket_services` (mockable if the Java config's `requiresDockerSocket()` checks `!mock`).
+5. Add a unit test that calls the new method without starting Docker.
