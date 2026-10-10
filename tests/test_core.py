@@ -111,8 +111,10 @@ def test_override_wins_both_ways() -> None:
 def test_service_config_exposes_its_ports() -> None:
     cfg = LambdaConfig(expose_runtime_ports=True)
     c = FlociContainer().with_service_config(cfg)
-    assert str(cfg.runtime_api_base_port) in c.ports
-    assert str(cfg.runtime_api_base_port + cfg.runtime_api_port_count - 1) in c.ports
+    # testcontainers keys ports by str or int depending on its version.
+    ports = {str(port) for port in c.ports}
+    assert str(cfg.runtime_api_base_port) in ports
+    assert str(cfg.runtime_api_base_port + cfg.runtime_api_port_count - 1) in ports
 
 
 def test_resource_namespace_is_unique_and_overridable() -> None:
