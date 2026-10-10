@@ -52,7 +52,7 @@ from floci.aws.config.services import (
     TransferFamilyConfig,
 )
 from floci.aws.config.top_level import StorageConfig, TlsConfig
-from floci.core import CloudDescriptor, FlociBaseContainer, SocketService
+from floci.core import CloudDescriptor, FlociBaseContainer, HostSetting, SocketService
 
 DEFAULT_IMAGE = "floci/floci"
 DEFAULT_TAG = "latest"
@@ -80,6 +80,8 @@ AWS = CloudDescriptor(
         SocketService("OPENSEARCH", mockable=True),
         SocketService("RDS"),
     ),
+    # RDS clients connect to the endpoint the API returns, so it must be reachable from the host.
+    host_settings=(HostSetting("RDS", "ENDPOINT_HOST"),),
 )
 
 

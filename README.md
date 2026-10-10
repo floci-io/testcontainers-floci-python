@@ -175,6 +175,10 @@ container = FlociContainer().with_rds_config(
 )
 ```
 
+The container sets `FLOCI_SERVICES_RDS_ENDPOINT_HOST` to the Docker host, so `describe_db_instances` returns an
+endpoint (host and published proxy port) that a client on the host can connect to, on Linux, macOS and Windows
+alike. Set `RdsConfig(endpoint_host=...)` to advertise another hostname.
+
 #### ElastiCache (Redis / Valkey)
 
 ```python
@@ -294,6 +298,10 @@ to always mount it.
 
 Each container also gets a unique `FLOCI_DOCKER_RESOURCE_NAMESPACE` (`tc-…`), so sibling containers of parallel
 test runs never collide by name.
+
+Floci manages the sibling containers it spawns; the testcontainers reaper does not track them. `stop()` (and so
+leaving a `with` block) removes every one of them after stopping Floci, found by the `floci_namespace` label that
+holds the namespace (`get_resource_namespace()`). Containers that share a namespace lose their siblings together.
 
 #### Resetting state
 

@@ -6,11 +6,16 @@ import urllib.request
 import uuid
 from typing import Any, ClassVar, Protocol, TypeVar
 
+from testcontainers.core.config import ConnectionMode
 from testcontainers.core.container import DockerContainer
+from testcontainers.core.docker_client import DockerClient
 from testcontainers.core.network import Network
+from testcontainers.core.utils import setup_logger
 from testcontainers.core.wait_strategies import HttpWaitStrategy
 
-from floci.core.descriptor import CloudDescriptor
+from floci.core.descriptor import NAMESPACE_LABEL, CloudDescriptor
+
+logger = setup_logger(__name__)
 
 DOCKER_SOCKET = "/var/run/docker.sock"
 
@@ -59,6 +64,7 @@ class FlociBaseContainer(DockerContainer):
         d = self.DESCRIPTOR
         if self.needs_docker_socket():
             self.with_volume_mapping(DOCKER_SOCKET, DOCKER_SOCKET, "rw")
+        self._set_host_settings()
         self.waiting_for(
             HttpWaitStrategy(d.port, d.health_path)
             .for_status_code(200)
@@ -66,6 +72,43 @@ class FlociBaseContainer(DockerContainer):
         )
         super().start()
         return self
+
+    def stop(self, force: bool = True, delete_volume: bool = True) -> None:
+        """Stop the emulator, then remove the sibling containers it spawned.
+
+        Floci manages the siblings (those labelled with this container's resource namespace) and
+        the testcontainers reaper does not track them, so without this they outlive the run; a
+        leaked one with a fixed host port, such as the AWS ECR registry, blocks the next run.
+        Containers sharing a namespace set with :meth:`with_resource_namespace` lose their
+        siblings too.
+        """
+        namespace = self.env.get(self.DESCRIPTOR.resource_namespace_env)
+        super().stop(force=force, delete_volume=delete_volume)
+        if namespace:
+            _remove_siblings(namespace)
+
+    def _set_host_settings(self) -> None:
+        """Point every unset host setting of an enabled service at the Docker host.
+
+        Without it Floci advertises sibling containers' bridge addresses (e.g. RDS endpoints),
+        which only a Linux host can reach. Inside a container the bridge address is the
+        reachable one, so nothing is set there.
+        """
+        d = self.DESCRIPTOR
+        missing = [
+            d.service_env(hs.token, hs.setting)
+            for hs in d.host_settings
+            if d.service_env(hs.token, hs.setting) not in self.env
+            and d.service_enabled(self.env, hs.token)
+        ]
+        if not missing:
+            return
+        client = self.get_docker_client()
+        if client.get_connection_mode() != ConnectionMode.docker_host:
+            return
+        host = client.host()
+        for key in missing:
+            self.with_env(key, host)
 
     def reset(self) -> None:
         """Wipe all emulator state (buckets, queues, tables, ...) without restarting."""
@@ -138,3 +181,21 @@ class FlociBaseContainer(DockerContainer):
         """Set the emulator log level (e.g. DEBUG, INFO, WARN, ERROR)."""
         self.with_env(self.DESCRIPTOR.log_level_env, level)
         return self
+
+
+def _remove_siblings(namespace: str) -> None:
+    """Remove every container labelled with ``namespace``; teardown never fails over leftovers."""
+    try:
+        client = DockerClient().client
+        try:
+            for sibling in client.containers.list(
+                all=True, filters={"label": f"{NAMESPACE_LABEL}={namespace}"}
+            ):
+                try:
+                    sibling.remove(force=True, v=True)
+                except Exception:  # noqa: BLE001 - already gone, or removed concurrently
+                    pass
+        finally:
+            client.close()
+    except Exception as exc:  # noqa: BLE001 - best effort during teardown
+        logger.debug("could not remove Floci sibling containers: %s", exc)

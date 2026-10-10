@@ -1,0 +1,5 @@
+# Docker images the integration tests pin. The tests read floci/floci from here
+# (tests/images.py) and CI pulls every line, so the tag is declared once.
+# One image:tag per line; '#' comments and blank lines are ignored. The library
+# default stays floci/floci:latest.
+floci/floci:2.2.0
