@@ -10,7 +10,8 @@ on:
           Existing release tag to (re)publish and security-scan (e.g. v0.3.0), bypassing the
           release-please gate. Use this to recover a release whose tag/GitHub Release was created
           out-of-band (so release-please never reported release_created=true) or to re-run a failed
-          publish/security-scan job. Leave empty for a normal dry run of just the release-please step.
+          publish/security-scan job. Leave empty to run release-please normally: it may update the
+          release PR, or tag and publish a release PR that has been merged.
         required: false
 
 permissions:
@@ -20,6 +21,9 @@ jobs:
   # Step 1: Maintain the release PR (version bump in pyproject.toml and uv.lock + changelog) and,
   # once it is merged, tag the release and create the GitHub Release.
   release-please:
+    # A tag recovery skips this job, so a release-please failure (e.g. an expired GH_TOKEN) cannot
+    # block re-publishing an existing tag.
+    if: inputs.tag == ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -40,7 +44,9 @@ jobs:
   # Step 2: Build the release tag and publish to PyPI (OIDC trusted publishing, no token)
   publish:
     needs: release-please
-    if: needs.release-please.outputs.release-created == 'true' || inputs.tag != ''
+    if: >-
+      !cancelled() && (inputs.tag != '' ||
+      (needs.release-please.result == 'success' && needs.release-please.outputs.release-created == 'true'))
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -66,7 +72,9 @@ jobs:
   # Step 3: Run security scanners against the release tag
   security-scan:
     needs: release-please
-    if: needs.release-please.outputs.release-created == 'true' || inputs.tag != ''
+    if: >-
+      !cancelled() && (inputs.tag != '' ||
+      (needs.release-please.result == 'success' && needs.release-please.outputs.release-created == 'true'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
