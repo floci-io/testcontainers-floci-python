@@ -3,6 +3,7 @@
   "release-type": "python",
   "changelog-path": "CHANGELOG.md",
   "include-component-in-tag": false,
+  "signoff": "Hector Ventura <hectorvent@gmail.com>",
   "last-release-sha": "c1285ea34c09110cada4382cbb31c5c4e8c6d153",
   "packages": {
     ".": {
