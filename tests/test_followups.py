@@ -32,9 +32,14 @@ def test_rds_endpoint_host_is_emitted_only_when_set() -> None:
     RdsConfig(endpoint_host="rds.example.com").apply_to(target)
     assert target.env["FLOCI_SERVICES_RDS_ENDPOINT_HOST"] == "rds.example.com"
 
-    # The latest config wins: one without endpoint_host drops the earlier host.
+    # A later config without endpoint_host drops the host the earlier config wrote...
     RdsConfig().apply_to(target)
     assert "FLOCI_SERVICES_RDS_ENDPOINT_HOST" not in target.env
+
+    # ...but not one set deliberately with with_env.
+    target.with_env("FLOCI_SERVICES_RDS_ENDPOINT_HOST", "db.internal")
+    RdsConfig().apply_to(target)
+    assert target.env["FLOCI_SERVICES_RDS_ENDPOINT_HOST"] == "db.internal"
 
 
 def test_host_settings_skip_disabled_or_explicit_services() -> None:

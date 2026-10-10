@@ -357,12 +357,16 @@ class RdsConfig:
 
     def apply_to(self, c: FlociContainer) -> None:
         _env(c, "FLOCI_SERVICES_RDS_ENABLED", self.enabled)
+        # A host an RdsConfig wrote belongs to the config: a later one without a host drops it,
+        # so the Docker-host default applies. A host set any other way (with_env) stays.
+        key = "FLOCI_SERVICES_RDS_ENDPOINT_HOST"
+        written = getattr(c, "_rds_config_endpoint_host", None)
         if self.endpoint_host:
-            _env(c, "FLOCI_SERVICES_RDS_ENDPOINT_HOST", self.endpoint_host)
-        else:
-            # The latest config wins: drop a host an earlier config set, so the Docker-host
-            # default applies.
-            c.env.pop("FLOCI_SERVICES_RDS_ENDPOINT_HOST", None)
+            _env(c, key, self.endpoint_host)
+            setattr(c, "_rds_config_endpoint_host", self.endpoint_host)  # noqa: B010
+        elif written is not None and c.env.get(key) == written:
+            c.env.pop(key)
+            setattr(c, "_rds_config_endpoint_host", None)  # noqa: B010
         _env(c, "FLOCI_SERVICES_RDS_PROXY_BASE_PORT", self.proxy_base_port)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE", self.default_postgres_image)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_MYSQL_IMAGE", self.default_mysql_image)
