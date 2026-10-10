@@ -351,9 +351,14 @@ class RdsConfig:
     default_postgres_image: str = "postgres:16-alpine"
     default_mysql_image: str = "mysql:8.0"
     default_mariadb_image: str = "mariadb:11"
+    endpoint_host: str | None = None
+    """Hostname Floci advertises in RDS endpoints. ``None`` means the Docker host, so clients on
+    the host can connect (Floci then advertises the published proxy port)."""
 
     def apply_to(self, c: FlociContainer) -> None:
         _env(c, "FLOCI_SERVICES_RDS_ENABLED", self.enabled)
+        if self.endpoint_host:
+            _env(c, "FLOCI_SERVICES_RDS_ENDPOINT_HOST", self.endpoint_host)
         _env(c, "FLOCI_SERVICES_RDS_PROXY_BASE_PORT", self.proxy_base_port)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_POSTGRES_IMAGE", self.default_postgres_image)
         _env(c, "FLOCI_SERVICES_RDS_DEFAULT_MYSQL_IMAGE", self.default_mysql_image)

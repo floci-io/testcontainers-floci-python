@@ -16,6 +16,7 @@ from floci.config import (
     SnsConfig,
     SqsConfig,
 )
+from tests.images import TEST_IMAGE
 
 
 def test_default_values() -> None:
@@ -54,7 +55,7 @@ def test_service_configs_apply_without_error() -> None:
 
 @pytest.mark.integration
 def test_container_starts_and_is_healthy() -> None:
-    with FlociContainer() as floci:
+    with FlociContainer(TEST_IMAGE) as floci:
         import urllib.request
 
         url = f"{floci.get_endpoint()}/_floci/health"
@@ -66,7 +67,7 @@ def test_container_starts_and_is_healthy() -> None:
 def test_s3_create_bucket() -> None:
     import boto3
 
-    with FlociContainer() as floci:
+    with FlociContainer(TEST_IMAGE) as floci:
         s3 = boto3.client(
             "s3",
             endpoint_url=floci.get_endpoint(),
@@ -83,7 +84,7 @@ def test_s3_create_bucket() -> None:
 def test_sqs_send_receive_message() -> None:
     import boto3
 
-    with FlociContainer() as floci:
+    with FlociContainer(TEST_IMAGE) as floci:
         sqs = boto3.client(
             "sqs",
             endpoint_url=floci.get_endpoint(),
@@ -102,7 +103,7 @@ def test_sqs_send_receive_message() -> None:
 def test_dynamodb_create_table() -> None:
     import boto3
 
-    with FlociContainer() as floci:
+    with FlociContainer(TEST_IMAGE) as floci:
         ddb = boto3.resource(
             "dynamodb",
             endpoint_url=floci.get_endpoint(),

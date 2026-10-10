@@ -64,8 +64,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --extra dev
 
-      - name: Pull Floci image
-        run: docker pull floci/floci:latest
+      - name: Pull pinned images
+        run: grep -v '^\s*\(#\|$\)' .github/docker-images.txt | xargs -n1 docker pull
 
       - name: Run integration tests
         run: uv run pytest -m integration -v --timeout=120
