@@ -16,5 +16,6 @@
 
 # CI, release automation, workflow hygiene
 /.github/            @hectorvent
-/.releaserc.json     @hectorvent
+/release-please-config.json     @hectorvent
+/.release-please-manifest.json  @hectorvent
 /pyproject.toml      @hectorvent

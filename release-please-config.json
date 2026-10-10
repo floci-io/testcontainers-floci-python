@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "changelog-path": "CHANGELOG.md",
+  "include-component-in-tag": false,
+  "last-release-sha": "c1285ea34c09110cada4382cbb31c5c4e8c6d153",
+  "packages": {
+    ".": {
+      "package-name": "testcontainers-floci",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value === 'testcontainers-floci')].version"
+        }
+      ]
+    }
+  }
+}
