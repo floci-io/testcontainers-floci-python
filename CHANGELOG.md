@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/floci-io/testcontainers-floci-python/compare/0.2.0...v0.3.0) (2026-10-10)
+
+
+### Features
+
+* shared core with a cloud descriptor; AWS module moves to floci.aws ([#11](https://github.com/floci-io/testcontainers-floci-python/issues/11)) ([cb8119b](https://github.com/floci-io/testcontainers-floci-python/commit/cb8119bba6a0e55db9766f3e3b9ef5903d44ead9))
+
+
+### Bug Fixes
+
+* remove Floci's sibling containers on stop; advertise a reachable RDS endpoint ([#12](https://github.com/floci-io/testcontainers-floci-python/issues/12)) ([cef0249](https://github.com/floci-io/testcontainers-floci-python/commit/cef0249e2f2bb217db345b9fb84cc289e69b8561))
+
 ## 0.2.0 (2026-10-07)
 
 First release from `main`. 0.1.1 was cut from the retired `release/0.1.x` branch and predates
