@@ -1,0 +1,57 @@
+name: Feature Request
+description: Suggest a new feature or improvement for testcontainers-floci-python
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement! Please describe what you would like and why it would be useful.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type of feature
+      options:
+        - Support for a new Floci service
+        - New configuration option for an existing service
+        - Improvement to FlociContainer (e.g. new fluent method)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: service
+    attributes:
+      label: AWS service (if applicable)
+      description: Which AWS service does this relate to?
+      placeholder: "e.g. SQS, RDS"
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation and use case
+      description: Why do you need this? Describe the problem you are trying to solve.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe what you would like to see. If you have ideas for the API or implementation, share them here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative approaches or workarounds you have already tried.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this feature.

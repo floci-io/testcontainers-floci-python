@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Floci documentation
+    url: https://floci.io/floci/services/
+    about: Check the Floci service documentation for supported services and configuration options.
+  - name: Floci repository
+    url: https://github.com/floci-io/floci
+    about: For issues with the Floci emulator itself (not this Testcontainers module), open an issue there.
