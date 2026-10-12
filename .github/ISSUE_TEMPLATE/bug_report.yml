@@ -1,0 +1,76 @@
+name: Bug Report
+description: Report a bug or unexpected behaviour in testcontainers-floci-python
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug. Please fill in as much detail as possible so we can reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: testcontainers-floci version
+      placeholder: "e.g. 0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: floci-image
+    attributes:
+      label: Floci Docker image
+      description: The `floci/floci` image tag in use, if you overrode the default.
+      placeholder: "e.g. floci/floci:latest"
+
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.9, 3.12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps or a code snippet that reproduces the issue.
+      placeholder: |
+        1. Create a FlociContainer with ...
+        2. Call ...
+        3. See error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened? Include any error messages, stack traces, or log output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Any other relevant details about your environment.
+      placeholder: |
+        OS: macOS 15, Windows 11, Ubuntu 24.04
+        Docker: 27.x
