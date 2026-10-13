@@ -140,6 +140,63 @@ def test_fluent_core_methods_keep_the_aws_type() -> None:
     assert c.get_region() == "eu-west-1"
 
 
+# --- replacing a config ---------------------------------------------------------------------
+
+
+def test_applying_the_same_config_again_changes_nothing() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    once = dict(c.env)
+    c.with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    assert c.env == once
+
+
+def test_a_replaced_config_takes_its_optional_settings_with_it() -> None:
+    c = FlociContainer().with_tls_config(
+        TlsConfig(enabled=True, cert_path="/certs/tls.crt", key_path="/certs/tls.key")
+    )
+    c.with_tls_config(TlsConfig(enabled=True))
+    assert "FLOCI_TLS_CERT_PATH" not in c.env
+    assert "FLOCI_TLS_KEY_PATH" not in c.env
+    assert c.env["FLOCI_TLS_SELF_SIGNED"] == "true"
+
+
+def test_a_disabled_config_removes_the_settings_of_the_enabled_one() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_tls_config(TlsConfig(enabled=False))
+    # Only ENABLED is emitted for a disabled config; nothing of the enabled one is left.
+    tls = {key: value for key, value in c.env.items() if key.startswith("FLOCI_TLS_")}
+    assert tls == {"FLOCI_TLS_ENABLED": "false"}
+    assert not c.needs_https_wait()
+
+
+def test_a_caller_override_survives_the_replacement() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_env("FLOCI_TLS_CERT_PATH", "/mine/tls.crt")
+    c.with_tls_config(TlsConfig(enabled=False))
+    assert c.env["FLOCI_TLS_CERT_PATH"] == "/mine/tls.crt"
+    assert "FLOCI_TLS_SELF_SIGNED" not in c.env
+
+
+def test_replacing_one_config_leaves_the_other_services_alone() -> None:
+    c = FlociContainer().with_s3_config(S3Config())
+    c.with_lambda_config(LambdaConfig(docker_network="functions"))
+    s3 = {key: value for key, value in c.env.items() if "_S3_" in key}
+    assert len(s3) > 1
+    assert c.env["FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK"] == "functions"
+
+    c.with_lambda_config(LambdaConfig())
+
+    assert "FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK" not in c.env
+    assert {key: value for key, value in c.env.items() if "_S3_" in key} == s3
+
+
+def test_a_variable_no_config_wrote_is_never_dropped() -> None:
+    c = FlociContainer().with_env("FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK", "mine")
+    c.with_lambda_config(LambdaConfig()).with_lambda_config(LambdaConfig(enabled=False))
+    assert c.env["FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK"] == "mine"
+
+
 # --- HTTPS readiness ------------------------------------------------------------------------
 
 

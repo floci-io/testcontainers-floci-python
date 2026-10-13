@@ -49,6 +49,9 @@ class FlociBaseContainer(DockerContainer):
 
     def __init__(self, image: str | None = None, **kwargs: Any) -> None:
         d = self.DESCRIPTOR
+        # What each config type last wrote, and the env vars of the config being applied.
+        self._config_env: dict[type, dict[str, str]] = {}
+        self._recording: dict[str, str] | None = None
         super().__init__(image=image or f"{d.image}:latest", **kwargs)
         self._dedicated_network: str | None = None
         self._docker_socket: bool | None = None
@@ -178,11 +181,36 @@ class FlociBaseContainer(DockerContainer):
     # ------------------------------------------------------------------
 
     def with_service_config(self: _C, config: ServiceConfig) -> _C:
-        """Apply a service config: its env vars, and its ports if it exposes any."""
-        config.apply_to(self)
+        """Apply a service config: its env vars, and its ports if it exposes any.
+
+        A config replaces the earlier one of its type: an env var the earlier one wrote and
+        this one does not is dropped, back to the cloud's default if it has one. A variable
+        set to something else with :meth:`with_env` in between is yours and stays.
+        """
+        written: dict[str, str] = {}
+        self._recording = written
+        try:
+            config.apply_to(self)
+        finally:
+            self._recording = None
+        defaults = self.DESCRIPTOR.default_env
+        for key, value in self._config_env.get(type(config), {}).items():
+            if key in written or self.env.get(key) != value:
+                continue
+            if key in defaults:
+                self.env[key] = defaults[key]
+            else:
+                del self.env[key]
+        self._config_env[type(config)] = written
         apply_ports = getattr(config, "apply_exposed_ports", None)
         if apply_ports is not None:
             apply_ports(self)
+        return self
+
+    def with_env(self: _C, key: str, value: str) -> _C:
+        super().with_env(key, value)
+        if self._recording is not None:
+            self._recording[key] = value
         return self
 
     def with_docker_socket(self: _C, enabled: bool) -> _C:

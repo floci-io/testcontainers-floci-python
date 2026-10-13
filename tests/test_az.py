@@ -247,6 +247,53 @@ def test_tls_config() -> None:
     assert c.env["FLOCI_AZ_TLS_HTTPS_PORT"] == "0"
 
 
+def test_a_replaced_sql_config_takes_its_provider_with_it() -> None:
+    c = all_disabled().with_sql_config(SqlConfig(data_plane_provider="managed"))
+    assert c.needs_docker_socket()
+
+    c.with_sql_config(SqlConfig())
+
+    assert "FLOCI_AZ_SERVICES_SQL_DATA_PLANE_PROVIDER" not in c.env
+    assert not c.needs_docker_socket()
+    assert env_of(SqlConfig()).items() <= c.env.items()
+
+
+def test_a_disabled_config_removes_the_settings_of_the_enabled_one() -> None:
+    c = FlociAzContainer().with_cosmos_config(CosmosConfig(mongodb_enabled=True))
+    c.with_cosmos_config(CosmosConfig(enabled=False))
+    cosmos = {k: v for k, v in c.env.items() if k.startswith("FLOCI_AZ_SERVICES_COSMOS_")}
+    assert cosmos == {"FLOCI_AZ_SERVICES_COSMOS_ENABLED": "false"}
+
+
+def test_a_caller_override_survives_the_replacement() -> None:
+    c = all_disabled().with_sql_config(SqlConfig(data_plane_provider="managed"))
+    c.with_env("FLOCI_AZ_SERVICES_SQL_DATA_PLANE_PROVIDER", "external")
+    c.with_sql_config(SqlConfig())
+    assert c.env["FLOCI_AZ_SERVICES_SQL_DATA_PLANE_PROVIDER"] == "external"
+
+
+def test_applying_the_same_config_again_changes_nothing() -> None:
+    c = FlociAzContainer().with_cosmos_config(CosmosConfig(gremlin_enabled=True))
+    once = dict(c.env)
+    c.with_cosmos_config(CosmosConfig(gremlin_enabled=True))
+    assert c.env == once
+
+
+def test_replacing_the_tls_config_keeps_the_default_https_port() -> None:
+    c = FlociAzContainer()
+    defaults = dict(c.env)
+    c.with_tls_config(TlsConfig(enabled=True, https_port=8443, cert_path="/certs/tls.crt"))
+    assert c.env["FLOCI_AZ_TLS_HTTPS_PORT"] == "8443"
+
+    c.with_tls_config(TlsConfig(enabled=False))
+
+    # Back to the container's default, not gone: without it the emulator binds 443.
+    assert c.env == {**defaults, "FLOCI_AZ_TLS_ENABLED": "false"}
+
+    c.with_tls_config(TlsConfig(enabled=True)).with_tls_config(TlsConfig(enabled=False))
+    assert c.env["FLOCI_AZ_TLS_HTTPS_PORT"] == "0"
+
+
 def test_https_wait_only_while_tls_is_enabled() -> None:
     assert AZ.tls_enabled_env == "FLOCI_AZ_TLS_ENABLED"
     c = FlociAzContainer()

@@ -138,6 +138,11 @@ matching `with_*_config(...)` method on `FlociContainer`. Every service config s
 some services expose additional settings. See the [Floci documentation](https://floci.io/floci/services/) for the
 full list of supported services.
 
+Passing a config again replaces the earlier one for that service, on every container in this module: a setting the
+earlier config wrote and the new one does not is removed from the environment (back to the container's default
+where it has one), so `with_x_config(XConfig())` really is the default setup. A variable you changed yourself with
+`with_env(...)` afterwards is left alone.
+
 ### Examples
 
 #### S3

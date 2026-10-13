@@ -70,6 +70,16 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - Integration tests run on the pinned images in `.github/docker-images.txt` (`tests/images.py`), never on `latest`.
 - Do not mock `DockerContainer` internals — test the public interface of `FlociContainer`.
 
+## Replacing a config
+
+- `with_service_config` (every `with_*_config` goes through it, `TlsConfig` too) records the env vars a config
+  writes, per config type. Applying a config of the same type again drops what the earlier one wrote and the new
+  one does not: an optional setting left unset, or everything but `ENABLED` once the service is disabled. A
+  dropped key goes back to the descriptor's `default_env` value if it has one (`FLOCI_AZ_TLS_HTTPS_PORT=0`).
+- A key whose value is no longer the one the config wrote was changed by the caller with `with_env` and is kept.
+- So a config's `apply_to` must set env vars through `with_env` on the container, never on `container.env`
+  directly, or the core cannot see them.
+
 ## Readiness
 
 - `FlociBaseContainer.start()` waits for 200 on the descriptor's health path over HTTP. While
