@@ -31,9 +31,11 @@
 A Python [Testcontainers](https://testcontainers.com/) module for [Floci](https://github.com/floci-io), the free,
 open-source local cloud emulators. `FlociContainer` starts a Floci (AWS) emulator container for your integration tests
 and gives you an endpoint and credentials to point boto3 at, plus typed, per-service config dataclasses over the
-emulator's environment variables. No cloud account, no auth token.
+emulator's environment variables. `FlociAzContainer` does the same for the Floci Azure emulator, with a storage
+connection string and endpoints for the Azure SDKs. No cloud account, no auth token.
 
-See the [Floci documentation](https://floci.io/floci/services/) for the full list of emulated AWS services.
+See the [Floci documentation](https://floci.io/floci/services/) for the full list of emulated AWS services, and
+[floci-az](https://github.com/floci-io/floci-az) for the Azure ones.
 
 ### The Floci emulators
 
@@ -44,7 +46,7 @@ like popcorn.
 | Emulator                                           | Cloud | Port | Supported                                                                  |
 |----------------------------------------------------|-------|:----:|:--------------------------------------------------------------------------:|
 | [floci](https://github.com/floci-io/floci)         | AWS   | 4566 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
-| [floci-az](https://github.com/floci-io/floci-az)   | Azure | 4577 | Planned                                                                    |
+| [floci-az](https://github.com/floci-io/floci-az)   | Azure | 4577 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 | [floci-gcp](https://github.com/floci-io/floci-gcp) | GCP   | 4588 | Planned                                                                    |
 | [floci-oci](https://github.com/floci-io/floci-oci) | OCI   | 4599 | Planned                                                                    |
 
@@ -108,12 +110,38 @@ def test_upload(s3_client):
     assert obj["Body"].read() == b"hello"
 ```
 
+### Azure
+
+`FlociAzContainer`, in `floci.az`, starts the Floci Azure emulator (`floci/floci-az`). Point the Azure SDKs at it
+with the storage connection string, or with the endpoint of one service:
+
+```python
+from azure.storage.blob import BlobServiceClient
+from floci.az import FlociAzContainer
+
+
+def test_blob():
+    with FlociAzContainer() as floci:
+        service = BlobServiceClient.from_connection_string(floci.get_storage_connection_string())
+        container = service.create_container("uploads")
+        container.upload_blob("hello.txt", b"hello")
+        assert container.download_blob("hello.txt").readall() == b"hello"
+```
+
+The Azure SDK packages (`azure-storage-blob`, `azure-storage-queue`, …) are yours to install; this module does not
+depend on them.
+
 ## Service configuration
 
 Each AWS service emulated by Floci can be configured individually using a typed config dataclass passed to the
 matching `with_*_config(...)` method on `FlociContainer`. Every service config supports at least an `enabled` flag;
 some services expose additional settings. See the [Floci documentation](https://floci.io/floci/services/) for the
 full list of supported services.
+
+Passing a config again replaces the earlier one for that service, on every container in this module: a setting the
+earlier config wrote and the new one does not is removed from the environment (back to the container's default
+where it has one), so `with_x_config(XConfig())` really is the default setup. A variable you changed yourself with
+`with_env(...)` afterwards is left alone.
 
 ### Examples
 
@@ -260,6 +288,69 @@ container = FlociContainer().with_msk_config(
 Cross-cutting settings use `TlsConfig` (`with_tls_config(...)`) and `StorageConfig` (`with_storage_config(...)`),
 both importable from `floci.config`.
 
+With TLS enabled the emulator port answers both HTTP and HTTPS. `start()` then waits for the health path over
+HTTPS as well as over HTTP (without checking the certificate), because the port accepts plain HTTP shortly before
+it completes TLS handshakes. That holds for every container in this module, and however TLS was switched on
+(`TlsConfig` or the `..._TLS_ENABLED` variable).
+
+### Azure services
+
+Azure service configs live in `floci.az.config`, one per service of the emulator, each passed to the matching
+`with_*_config(...)` method on `FlociAzContainer`. Every one has an `enabled` flag; the container-backed services
+also have `mocked`, which keeps the emulator from starting a sibling container for them.
+
+```python
+from floci.az import FlociAzContainer
+from floci.az.config import CosmosConfig, FunctionsConfig, ServiceBusConfig, SqlConfig
+
+container = (
+    FlociAzContainer()
+    .with_service_bus_config(ServiceBusConfig(mocked=False))  # a real broker in a sibling container
+    .with_functions_config(FunctionsConfig(enabled=False))
+    .with_cosmos_config(CosmosConfig(mongodb_enabled=True))
+    .with_sql_config(SqlConfig(data_plane_provider="managed", accept_eula="Y"))
+)
+```
+
+| Config class | Azure service | `mocked` (default) |
+|---|---|---|
+| `AciConfig` | Container Instances | yes (`True`) |
+| `AcrConfig` | Container Registry | yes (`False`) |
+| `AksConfig` | Kubernetes Service | yes (`False`) |
+| `ApimConfig` | API Management | |
+| `AppConfigConfig` | App Configuration | |
+| `ArmConfig` | Resource Manager | |
+| `BlobConfig` | Blob Storage | |
+| `ContainerAppsConfig` | Container Apps | yes (`True`) |
+| `CosmosConfig` | Cosmos DB | yes (`False`) |
+| `EmailConfig` | Communication Services Email | |
+| `EntraConfig` | Microsoft Entra ID | |
+| `EventGridConfig` | Event Grid | |
+| `EventHubConfig` | Event Hubs | yes (`False`) |
+| `FunctionsConfig` | Functions | yes (`False`) |
+| `GraphConfig` | Microsoft Graph | |
+| `KeyVaultConfig` | Key Vault | |
+| `ManagedIdentityConfig` | Managed Identity | |
+| `MariaDbConfig` | Database for MariaDB | yes (`False`) |
+| `MonitorConfig` | Monitor | |
+| `MySqlConfig` | Database for MySQL | yes (`False`) |
+| `NetworkConfig` | Virtual networks and DNS | |
+| `PolicyConfig` | Policy (emulator releases after 0.14.0) | |
+| `PostgresConfig` | Database for PostgreSQL | yes (`False`) |
+| `QueueConfig` | Queue Storage | |
+| `RedisConfig` | Cache for Redis | yes (`False`) |
+| `ServiceBusConfig` | Service Bus | yes (`True`) |
+| `SignalRConfig` | SignalR Service | |
+| `SqlConfig` | SQL Database | |
+| `TableConfig` | Table Storage | |
+| `VmConfig` | Virtual Machines | yes (`True`) |
+
+`CosmosConfig` also takes `engine_startup` (`on-demand`, `eager` or `disabled`) and a switch per container-backed
+engine (`mongodb_enabled`, `postgresql_enabled`, `cassandra_enabled`, `gremlin_enabled`). `SqlConfig` takes
+`data_plane_provider` (`none`, `managed` or `external`) and `accept_eula`. Any other emulator setting can be set
+with `with_env("FLOCI_AZ_SERVICES_<SERVICE>_<SETTING>", ...)`. TLS uses `TlsConfig` (`with_tls_config(...)`), also
+in `floci.az.config`.
+
 ## Container options
 
 ```python
@@ -303,6 +394,12 @@ Floci manages the sibling containers it spawns; the testcontainers reaper does n
 leaving a `with` block) removes every one of them after stopping Floci, found by the `floci_namespace` label that
 holds the namespace (`get_resource_namespace()`). Containers that share a namespace lose their siblings together.
 
+On Azure the same rule holds for `FlociAzContainer`: ACR, AKS, Event Hubs, Functions, MariaDB, MySQL, PostgreSQL
+and Redis need the socket while enabled and not `mocked`. Service Bus, Container Instances, Virtual Machines and
+Container Apps are mocked by default and need it only with `mocked=False`. Cosmos DB needs it only for an enabled
+container-backed engine (and never with `engine_startup="disabled"`), SQL Database only with the `managed`
+data-plane provider. The namespace variable there is `FLOCI_AZ_DOCKER_RESOURCE_NAMESPACE`.
+
 #### Resetting state
 
 `reset()` wipes all emulator state (buckets, queues, tables, …) without restarting the container, which is
@@ -312,6 +409,8 @@ handy when one container is shared across tests.
 
 The AWS module lives in `floci.aws` (`from floci.aws import FlociContainer`, `from floci.aws.config import
 S3Config`). The shorter `floci` and `floci.config` imports used throughout this README keep working as aliases.
+The Azure module lives in `floci.az` (`from floci.az import FlociAzContainer`, `from floci.az.config import
+BlobConfig`). Both are built on `floci.core`.
 
 ### Connection details
 
@@ -324,6 +423,23 @@ S3Config`). The shorter `floci` and `floci.config` imports used throughout this 
 | `get_account_id()` | AWS account ID (`"000000000000"` by default) |
 | `get_availability_zone()` | Default availability zone (`"us-east-1a"` by default) |
 | `get_dedicated_network_name()` | Name of the dedicated Docker network, or `None` |
+
+`FlociAzContainer` shares the core methods above (`with_log_level`, `with_dedicated_network`, `with_docker_socket`,
+`with_resource_namespace`, `reset`, `get_endpoint`, `get_dedicated_network_name`) and has its own connection details:
+
+| Method | Returns |
+|---|---|
+| `get_endpoint()` | `http://host:port` of the emulator |
+| `get_https_endpoint()` | `https://host:port`, the same port; answers once TLS is enabled with `TlsConfig(enabled=True)` |
+| `get_tls_certificate()` | PEM certificate to trust for the HTTPS endpoint |
+| `get_subscription_id()` | Subscription ID (`00000000-0000-0000-0000-000000000001`) |
+| `get_tenant_id()` | Entra tenant ID (`00000000-0000-0000-0000-000000000002`) |
+| `get_account_name()` | Storage account name (`devstoreaccount1`) |
+| `get_account_key()` | Storage account key |
+| `get_blob_endpoint()` | Blob endpoint, `http://host:port/devstoreaccount1` |
+| `get_queue_endpoint()` | Queue endpoint, `http://host:port/devstoreaccount1-queue` |
+| `get_table_endpoint()` | Table endpoint, `http://host:port/devstoreaccount1-table` |
+| `get_storage_connection_string()` | Connection string for the Azure Storage SDKs (Blob, Queue, Table) |
 
 ## Docker image tags
 
@@ -341,7 +457,8 @@ FlociContainer(image="floci/floci:nightly")  # built from main every night
 | `floci/floci:x.y.z`   | Pinned release                    |
 | `floci/floci:nightly` | Built from `main` every night     |
 
-Every emulator publishes `latest`, `x.y.z` and `nightly` tags.
+Every emulator publishes `latest`, `x.y.z` and `nightly` tags; `FlociAzContainer` defaults to
+`floci/floci-az:latest` and takes an image the same way.
 
 ## Requirements
 

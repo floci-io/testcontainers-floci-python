@@ -14,3 +14,6 @@ def pinned_image(prefix: str) -> str:
 
 TEST_IMAGE = pinned_image("floci/floci:")
 """The pinned floci/floci tag every integration test runs against."""
+
+AZ_TEST_IMAGE = pinned_image("floci/floci-az:")
+"""The pinned floci/floci-az tag every Azure integration test runs against."""

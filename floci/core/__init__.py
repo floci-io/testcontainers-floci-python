@@ -1,7 +1,13 @@
 """Shared core of the Floci Testcontainers modules: a cloud descriptor and one lifecycle."""
 
 from floci.core.container import DOCKER_SOCKET, FlociBaseContainer, ServiceConfig, env_value
-from floci.core.descriptor import NAMESPACE_LABEL, CloudDescriptor, HostSetting, SocketService
+from floci.core.descriptor import (
+    NAMESPACE_LABEL,
+    CloudDescriptor,
+    HostSetting,
+    Setting,
+    SocketService,
+)
 
 __all__ = [
     "DOCKER_SOCKET",
@@ -10,6 +16,7 @@ __all__ = [
     "FlociBaseContainer",
     "HostSetting",
     "ServiceConfig",
+    "Setting",
     "SocketService",
     "env_value",
 ]

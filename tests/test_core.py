@@ -18,8 +18,10 @@ from floci.aws.config import (
     OpenSearchConfig,
     RdsConfig,
     S3Config,
+    TlsConfig,
 )
 from floci.core import CloudDescriptor, FlociBaseContainer
+from tests.https import https_status
 from tests.images import TEST_IMAGE
 
 
@@ -136,6 +138,152 @@ def test_fluent_core_methods_keep_the_aws_type() -> None:
     c = FlociContainer().with_dedicated_network().with_log_level("INFO").with_region("eu-west-1")
     assert isinstance(c, FlociContainer)
     assert c.get_region() == "eu-west-1"
+
+
+# --- replacing a config ---------------------------------------------------------------------
+
+
+def test_applying_the_same_config_again_changes_nothing() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    once = dict(c.env)
+    c.with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    assert c.env == once
+
+
+def test_a_replaced_config_takes_its_optional_settings_with_it() -> None:
+    c = FlociContainer().with_tls_config(
+        TlsConfig(enabled=True, cert_path="/certs/tls.crt", key_path="/certs/tls.key")
+    )
+    c.with_tls_config(TlsConfig(enabled=True))
+    assert "FLOCI_TLS_CERT_PATH" not in c.env
+    assert "FLOCI_TLS_KEY_PATH" not in c.env
+    assert c.env["FLOCI_TLS_SELF_SIGNED"] == "true"
+
+
+def test_a_disabled_config_removes_the_settings_of_the_enabled_one() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_tls_config(TlsConfig(enabled=False))
+    # Only ENABLED is emitted for a disabled config; nothing of the enabled one is left.
+    tls = {key: value for key, value in c.env.items() if key.startswith("FLOCI_TLS_")}
+    assert tls == {"FLOCI_TLS_ENABLED": "false"}
+    assert not c.needs_https_wait()
+
+
+def test_a_caller_override_survives_the_replacement() -> None:
+    c = FlociContainer().with_tls_config(TlsConfig(enabled=True, cert_path="/certs/tls.crt"))
+    c.with_env("FLOCI_TLS_CERT_PATH", "/mine/tls.crt")
+    c.with_tls_config(TlsConfig(enabled=False))
+    assert c.env["FLOCI_TLS_CERT_PATH"] == "/mine/tls.crt"
+    assert "FLOCI_TLS_SELF_SIGNED" not in c.env
+
+
+def test_replacing_one_config_leaves_the_other_services_alone() -> None:
+    c = FlociContainer().with_s3_config(S3Config())
+    c.with_lambda_config(LambdaConfig(docker_network="functions"))
+    s3 = {key: value for key, value in c.env.items() if "_S3_" in key}
+    assert len(s3) > 1
+    assert c.env["FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK"] == "functions"
+
+    c.with_lambda_config(LambdaConfig())
+
+    assert "FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK" not in c.env
+    assert {key: value for key, value in c.env.items() if "_S3_" in key} == s3
+
+
+def test_a_variable_no_config_wrote_is_never_dropped() -> None:
+    c = FlociContainer().with_env("FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK", "mine")
+    c.with_lambda_config(LambdaConfig()).with_lambda_config(LambdaConfig(enabled=False))
+    assert c.env["FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK"] == "mine"
+
+
+# --- HTTPS readiness ------------------------------------------------------------------------
+
+
+def test_https_wait_only_while_tls_is_enabled() -> None:
+    assert AWS.tls_enabled_env == "FLOCI_TLS_ENABLED"
+    c = FlociContainer()
+    assert not c.needs_https_wait()
+    assert c.with_tls_config(TlsConfig(enabled=True)).needs_https_wait()
+    assert not c.with_tls_config(TlsConfig(enabled=False)).needs_https_wait()
+    # From the final environment, however TLS was switched on.
+    assert c.with_env("FLOCI_TLS_ENABLED", "TRUE").needs_https_wait()
+    assert not c.with_env("FLOCI_TLS_ENABLED", "false").needs_https_wait()
+
+
+def test_tls_env_follows_the_descriptor_prefix() -> None:
+    other = CloudDescriptor(
+        name="x",
+        image="floci/x",
+        port=1,
+        env_prefix="FLOCI_X_",
+        health_path="/health",
+        reset_path=None,
+        log_level_env="LOG",
+    )
+    assert other.tls_enabled_env == "FLOCI_X_TLS_ENABLED"
+    assert not other.tls_enabled({})
+    assert other.tls_enabled({"FLOCI_X_TLS_ENABLED": "true"})
+    assert not other.tls_enabled({"FLOCI_TLS_ENABLED": "true"})
+
+
+class _Response:
+    status = 200
+
+    def __enter__(self) -> _Response:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+
+def test_https_wait_polls_the_health_path_until_it_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ssl
+    import urllib.error
+
+    calls: list[tuple[str, ssl.SSLContext]] = []
+
+    def urlopen(url: str, timeout: float, context: ssl.SSLContext) -> _Response:
+        calls.append((url, context))
+        if len(calls) < 3:  # the window in which the port accepts but TLS is not up yet
+            raise urllib.error.URLError(ssl.SSLEOFError("EOF occurred in violation of protocol"))
+        return _Response()
+
+    c = FlociContainer()
+    monkeypatch.setattr(c, "get_endpoint", lambda: "http://localhost:32768")
+    monkeypatch.setattr("floci.core.container.urllib.request.urlopen", urlopen)
+    monkeypatch.setattr("floci.core.container.time.sleep", lambda seconds: None)
+
+    c._wait_for_https()
+
+    assert [url for url, _ in calls] == ["https://localhost:32768/_floci/health"] * 3
+    # The probe only asks whether TLS answers; it trusts no particular certificate.
+    assert calls[0][1].verify_mode == ssl.CERT_NONE
+
+
+def test_https_wait_gives_up_after_the_startup_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def urlopen(url: str, timeout: float, context: object) -> _Response:
+        raise ConnectionResetError("reset")
+
+    class Impatient(FlociContainer):
+        STARTUP_TIMEOUT = 0
+
+    c = Impatient()
+    monkeypatch.setattr(c, "get_endpoint", lambda: "http://localhost:32768")
+    monkeypatch.setattr("floci.core.container.urllib.request.urlopen", urlopen)
+
+    with pytest.raises(TimeoutError, match="HTTPS endpoint not ready within 0 seconds"):
+        c._wait_for_https()
+
+
+@pytest.mark.integration
+def test_https_answers_as_soon_as_a_tls_container_has_started() -> None:
+    # The port answers plain HTTP before it completes TLS handshakes; start() must cover both.
+    with FlociContainer(TEST_IMAGE).with_tls_config(TlsConfig(enabled=True)) as floci:
+        url = "https" + floci.get_endpoint()[len("http") :] + "/_floci/health"
+        assert https_status(url) == 200
 
 
 @pytest.mark.integration

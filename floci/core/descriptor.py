@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Optional
+
+Setting = Callable[[str], Optional[str]]
+"""Reads one setting of a service from the env, e.g. ``setting("MOCKED")``; ``None`` if unset."""
 
 
 @dataclass(frozen=True)
@@ -11,11 +15,18 @@ class SocketService:
     """A service that spawns sibling containers and therefore needs the host Docker socket.
 
     ``token`` is the SCREAMING_SNAKE service name in ``<prefix>SERVICES_<token>_ENABLED``.
-    A ``mockable`` service spawns nothing while ``<prefix>SERVICES_<token>_MOCK`` is ``true``.
+    A ``mockable`` service spawns nothing while ``<prefix>SERVICES_<token>_<mock_setting>`` is
+    ``true``; while that setting is unset the emulator's default, ``mocked_by_default``, counts.
+    ``spawns`` narrows it further for a service whose need depends on a mode: it gets a reader
+    of the service's settings and says whether the service, enabled and not mocked, spawns
+    containers.
     """
 
     token: str
     mockable: bool = False
+    mock_setting: str = "MOCK"
+    mocked_by_default: bool = False
+    spawns: Callable[[Setting], bool] | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +96,15 @@ class CloudDescriptor:
         """Env var that prefixes sibling container names, keeping parallel runs apart."""
         return f"{self.env_prefix}DOCKER_RESOURCE_NAMESPACE"
 
+    @property
+    def tls_enabled_env(self) -> str:
+        """Env var that turns on TLS; the emulator port then answers both HTTP and HTTPS."""
+        return f"{self.env_prefix}TLS_ENABLED"
+
+    def tls_enabled(self, env: Mapping[str, str]) -> bool:
+        """Whether TLS is on in ``env``; a missing key means off, which is Floci's default."""
+        return env.get(self.tls_enabled_env, "").lower() == "true"
+
     def service_env(self, token: str, setting: str) -> str:
         """Env var of one service setting, e.g. ``service_env("SQS", "ENABLED")``."""
         return f"{self.env_prefix}SERVICES_{token}_{setting}"
@@ -100,10 +120,19 @@ class CloudDescriptor:
         A missing ``_ENABLED`` key means enabled, which is Floci's default.
         """
         for svc in self.socket_services:
-            enabled = env.get(self.service_env(svc.token, "ENABLED"))
-            if enabled is not None and enabled.lower() != "true":
+            if not self.service_enabled(env, svc.token):
                 continue
-            if svc.mockable and env.get(self.service_env(svc.token, "MOCK"), "").lower() == "true":
+            if svc.mockable:
+                mocked = env.get(self.service_env(svc.token, svc.mock_setting))
+                if svc.mocked_by_default if mocked is None else mocked.lower() == "true":
+                    continue
+            if svc.spawns is not None and not svc.spawns(self._setting_reader(env, svc.token)):
                 continue
             return True
         return False
+
+    def _setting_reader(self, env: Mapping[str, str], token: str) -> Setting:
+        def read(setting: str) -> str | None:
+            return env.get(self.service_env(token, setting))
+
+        return read
