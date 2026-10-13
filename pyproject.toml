@@ -9,7 +9,7 @@ description = "Testcontainers module for Floci — the open-source local AWS emu
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-keywords = ["testcontainers", "floci", "aws", "testing"]
+keywords = ["testcontainers", "floci", "aws", "azure", "testing"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -29,6 +29,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "azure-storage-blob>=12.19",
+    "azure-storage-queue>=12.9",
     "boto3>=1.34",
     "botocore>=1.34",
     "mypy>=1.0",
