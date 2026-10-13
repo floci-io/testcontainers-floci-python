@@ -139,15 +139,18 @@ depend on them.
 the environment variables Google's client libraries read to find an emulator; set them before creating a client:
 
 ```python
-import os
+import pytest
 
 from floci.gcp import FlociGcpContainer
 from google.cloud import storage
 
 
-def test_bucket():
+def test_bucket(monkeypatch: pytest.MonkeyPatch):
     with FlociGcpContainer() as floci:
-        os.environ.update(floci.get_emulator_env())
+        # monkeypatch restores the variables after the test, so no later test inherits a
+        # stopped emulator's address.
+        for key, value in floci.get_emulator_env().items():
+            monkeypatch.setenv(key, value)
         client = storage.Client()
         bucket = client.create_bucket("uploads")
         bucket.blob("hello.txt").upload_from_string(b"hello")
