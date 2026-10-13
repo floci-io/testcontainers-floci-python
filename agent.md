@@ -1,6 +1,6 @@
 # testcontainers-floci-python
 
-Testcontainers module for [Floci](https://github.com/floci-io) — the open-source local cloud emulators (AWS in `floci.aws`, Azure in `floci.az`).
+Testcontainers module for [Floci](https://github.com/floci-io) — the open-source local cloud emulators (AWS in `floci.aws`, Azure in `floci.az`, GCP in `floci.gcp`).
 
 ## Project layout
 
@@ -9,6 +9,7 @@ floci/
   core/                # CloudDescriptor, FlociBaseContainer — shared by every cloud
   aws/                 # AWS descriptor, FlociContainer, config/ (one dataclass per AWS service)
   az/                  # AZ descriptor, FlociAzContainer, config/ (one dataclass per Azure service)
+  gcp/                 # GCP descriptor, FlociGcpContainer, config/ (one dataclass per GCP service)
   __init__.py          # alias of floci.aws (FlociContainer)
   container.py         # alias of floci.aws.container
   config/              # alias of floci.aws.config
@@ -17,6 +18,7 @@ tests/
   test_container.py    # AWS unit + integration tests
   test_core.py         # core + AWS socket detection
   test_az.py           # Azure unit + integration tests
+  test_gcp.py          # GCP unit + integration tests
 ```
 
 ## Setup
@@ -58,7 +60,7 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - **Fluent API**: `FlociContainer` methods return `self` typed as `"FlociContainer"` so callers can chain configuration calls.
 - **No bare `except`**: catch specific exception types. Use `Exception` only as a last resort and always bind it (`except Exception as exc`).
 - **No mutable default arguments**: use `None` and assign inside the function.
-- **Layout**: `floci/core/` is the cloud-independent part (`CloudDescriptor`, `FlociBaseContainer`: readiness, Docker socket detection, network, namespace, log level, reset). Each cloud is a package on top of it: `floci/aws/` (`container.py` with the `AWS` descriptor and `FlociContainer`, `config/services.py`, `config/top_level.py`) and `floci/az/` (`container.py` with the `AZ` descriptor and `FlociAzContainer`, `config/`). `floci/__init__.py`, `floci/container.py` and `floci/config/` are compatibility aliases of `floci.aws`; keep them re-exporting, never put code there.
+- **Layout**: `floci/core/` is the cloud-independent part (`CloudDescriptor`, `FlociBaseContainer`: readiness, Docker socket detection, network, namespace, log level, reset). Each cloud is a package on top of it: `floci/aws/` (`container.py` with the `AWS` descriptor and `FlociContainer`, `config/services.py`, `config/top_level.py`) `floci/az/` (`container.py` with the `AZ` descriptor and `FlociAzContainer`, `config/`) and `floci/gcp/` (the `GCP` descriptor and `FlociGcpContainer`, same shape). `floci/__init__.py`, `floci/container.py` and `floci/config/` are compatibility aliases of `floci.aws`; keep them re-exporting, never put code there.
 - **Dataclasses for config**: AWS service configuration lives in `floci/aws/config/services.py` as `@dataclass` classes, each with an `apply_to(container)` method (and `apply_exposed_ports` when the service publishes ports). Keep them in that file.
 - Do not use `os.path`; prefer `pathlib` instead`
 
@@ -66,7 +68,7 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 
 - Unit tests must not require Docker and must not start a container. They test construction, fluent methods, and config application only.
 - Integration tests are marked `@pytest.mark.integration` and use `with FlociContainer() as floci:` as a context manager.
-- Use `boto3` in integration tests to verify real AWS API behaviour, and the Azure SDK (`azure-storage-*`, dev dependencies only) for Azure.
+- Use `boto3` in integration tests to verify real AWS API behaviour, the Azure SDK (`azure-storage-*`) for Azure, and `google-cloud-storage` or plain HTTP for GCP. SDKs are dev dependencies only.
 - Integration tests run on the pinned images in `.github/docker-images.txt` (`tests/images.py`), never on `latest`.
 - Do not mock `DockerContainer` internals — test the public interface of `FlociContainer`.
 
@@ -115,3 +117,22 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - Deliberate differences from Java: `PolicyConfig` exists here because the emulator has the service (Java has no
   config for it yet); `TlsConfig.https_port` defaults to `0` (Java: 443), matching the container's default env;
   SQL socket detection also honours the emulator's deprecated `FLOCI_AZ_SERVICES_SQL_MOCKED`.
+
+## GCP (`floci.gcp`)
+
+- There is no Java module for GCP yet, so the emulator is the source of truth: `ServicesConfig` in
+  `floci-gcp/src/main/java/io/floci/gcp/config/EmulatorConfig.java`, read at the tag pinned in
+  `.github/docker-images.txt`. When Java ships `testcontainers-floci-gcp`, compare and record any difference here.
+- Same shape as Azure: a dataclass per service in `floci/gcp/config/services.py` on `GcpServiceConfig` (an
+  `enabled` switch) or `GcpMockableServiceConfig` (plus `mock`; the setting is `MOCK`, as on AWS). The service
+  tokens are single words (`SECRETMANAGER`, `CLOUDSQL`), and the fluent method is `with_<token>_config`.
+- Socket services are exactly the mockable ones (BigQuery, Cloud Run, Cloud SQL, GKE, Kafka). BigQuery has a
+  `spawns` rule: no sidecar when `DUCK_URL` is set. Cloud Functions is control plane only and starts nothing.
+- `FLOCI_GCP_SERVICES_GKE_ENDPOINT_MODE` is left at the emulator's default, `host`: the cluster endpoint is then
+  `localhost:<published port>`, which the test host reaches. `network` advertises the sibling's container name.
+- `get_emulator_env()` holds what Google's SDKs read, `host:port` except `STORAGE_EMULATOR_HOST` (a URL).
+  `LOGGING_EMULATOR_HOST` and `KMS_EMULATOR_HOST` are only a floci-gcp convention (its compatibility tests); no
+  client library reads them.
+- Adding a GCP service: the dataclass, `SERVICE_CONFIGS` and `__all__` in `floci/gcp/config/__init__.py`, a
+  `with_<token>_config` method on `FlociGcpContainer`, a row in `SERVICES` in `tests/test_gcp.py`, and a
+  `SocketService` in `GCP.socket_services` if it spawns containers.

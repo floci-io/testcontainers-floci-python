@@ -32,10 +32,12 @@ A Python [Testcontainers](https://testcontainers.com/) module for [Floci](https:
 open-source local cloud emulators. `FlociContainer` starts a Floci (AWS) emulator container for your integration tests
 and gives you an endpoint and credentials to point boto3 at, plus typed, per-service config dataclasses over the
 emulator's environment variables. `FlociAzContainer` does the same for the Floci Azure emulator, with a storage
-connection string and endpoints for the Azure SDKs. No cloud account, no auth token.
+connection string and endpoints for the Azure SDKs, and `FlociGcpContainer` for the Floci GCP emulator, with the
+`*_EMULATOR_HOST` variables Google's SDKs read. No cloud account, no auth token.
 
 See the [Floci documentation](https://floci.io/floci/services/) for the full list of emulated AWS services, and
-[floci-az](https://github.com/floci-io/floci-az) for the Azure ones.
+[floci-az](https://github.com/floci-io/floci-az) and [floci-gcp](https://github.com/floci-io/floci-gcp) for the
+Azure and GCP ones.
 
 ### The Floci emulators
 
@@ -47,7 +49,7 @@ like popcorn.
 |----------------------------------------------------|-------|:----:|:--------------------------------------------------------------------------:|
 | [floci](https://github.com/floci-io/floci)         | AWS   | 4566 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 | [floci-az](https://github.com/floci-io/floci-az)   | Azure | 4577 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
-| [floci-gcp](https://github.com/floci-io/floci-gcp) | GCP   | 4588 | Planned                                                                    |
+| [floci-gcp](https://github.com/floci-io/floci-gcp) | GCP   | 4588 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 | [floci-oci](https://github.com/floci-io/floci-oci) | OCI   | 4599 | Planned                                                                    |
 
 ## Installation
@@ -130,6 +132,31 @@ def test_blob():
 
 The Azure SDK packages (`azure-storage-blob`, `azure-storage-queue`, …) are yours to install; this module does not
 depend on them.
+
+### GCP
+
+`FlociGcpContainer`, in `floci.gcp`, starts the Floci GCP emulator (`floci/floci-gcp`). `get_emulator_env()` returns
+the environment variables Google's client libraries read to find an emulator; set them before creating a client:
+
+```python
+import os
+
+from floci.gcp import FlociGcpContainer
+from google.cloud import storage
+
+
+def test_bucket():
+    with FlociGcpContainer() as floci:
+        os.environ.update(floci.get_emulator_env())
+        client = storage.Client()
+        bucket = client.create_bucket("uploads")
+        bucket.blob("hello.txt").upload_from_string(b"hello")
+        assert bucket.blob("hello.txt").download_as_bytes() == b"hello"
+```
+
+A service without an emulator variable (BigQuery, Cloud Tasks, Cloud KMS, Cloud Logging, …) takes the endpoint
+when you build its client: `get_endpoint()` for REST, `get_emulator_host()` (`host:port`) for a plaintext gRPC
+channel. The Google client libraries are yours to install; this module does not depend on them.
 
 ## Service configuration
 
@@ -351,6 +378,56 @@ engine (`mongodb_enabled`, `postgresql_enabled`, `cassandra_enabled`, `gremlin_e
 with `with_env("FLOCI_AZ_SERVICES_<SERVICE>_<SETTING>", ...)`. TLS uses `TlsConfig` (`with_tls_config(...)`), also
 in `floci.az.config`.
 
+### GCP services
+
+GCP service configs live in `floci.gcp.config`, one per service of the emulator, each passed to the matching
+`with_*_config(...)` method on `FlociGcpContainer`. Every one has an `enabled` flag; the container-backed services
+also have `mock` (default `False`), which keeps the emulator from starting a sibling container for them.
+
+```python
+from floci.gcp import FlociGcpContainer
+from floci.gcp.config import BigQueryConfig, CloudSqlConfig, GkeConfig
+
+container = (
+    FlociGcpContainer()
+    .with_gke_config(GkeConfig(enabled=False))
+    .with_cloudsql_config(CloudSqlConfig(mock=True))  # control plane only, no database container
+    .with_bigquery_config(BigQueryConfig(mock=True))  # built-in SQL subset instead of DuckDB
+)
+```
+
+| Config class | GCP service | `mock` |
+|---|---|---|
+| `BigQueryConfig` | BigQuery | yes |
+| `CloudFunctionsConfig` | Cloud Functions | |
+| `CloudRunConfig` | Cloud Run | yes |
+| `CloudSqlConfig` | Cloud SQL | yes |
+| `CloudTasksConfig` | Cloud Tasks | |
+| `ComputeConfig` | Compute Engine | |
+| `DatastoreConfig` | Datastore | |
+| `EventarcConfig` | Eventarc | |
+| `FirebaseAuthConfig` | Firebase Authentication | |
+| `FirestoreConfig` | Firestore | |
+| `GcsConfig` | Cloud Storage | |
+| `GkeConfig` | Kubernetes Engine | yes |
+| `IamConfig` | IAM | |
+| `IamCredentialsConfig` | IAM Service Account Credentials | |
+| `KafkaConfig` | Managed Service for Apache Kafka | yes |
+| `KmsConfig` | Cloud KMS | |
+| `LoggingConfig` | Cloud Logging | |
+| `MonitoringConfig` | Cloud Monitoring | |
+| `PubSubConfig` | Pub/Sub | |
+| `ResourceManagerConfig` | Resource Manager | |
+| `SchedulerConfig` | Cloud Scheduler | |
+| `SecretManagerConfig` | Secret Manager | |
+| `ServiceUsageConfig` | Service Usage | |
+| `StsConfig` | Security Token Service | |
+
+The method is named after the emulator's service token: `with_cloudsql_config`, `with_secretmanager_config`,
+`with_pubsub_config`. Any other emulator setting can be set with
+`with_env("FLOCI_GCP_SERVICES_<SERVICE>_<SETTING>", ...)`. TLS uses `TlsConfig` (`with_tls_config(...)`), also in
+`floci.gcp.config`.
+
 ## Container options
 
 ```python
@@ -400,6 +477,10 @@ Container Apps are mocked by default and need it only with `mocked=False`. Cosmo
 container-backed engine (and never with `engine_startup="disabled"`), SQL Database only with the `managed`
 data-plane provider. The namespace variable there is `FLOCI_AZ_DOCKER_RESOURCE_NAMESPACE`.
 
+On GCP (`FlociGcpContainer`), GKE, Cloud SQL, Cloud Run, Managed Kafka and BigQuery need the socket while enabled
+and not `mock`; BigQuery does not when `FLOCI_GCP_SERVICES_BIGQUERY_DUCK_URL` names a running DuckDB sidecar. The
+namespace variable is `FLOCI_GCP_DOCKER_RESOURCE_NAMESPACE`.
+
 #### Resetting state
 
 `reset()` wipes all emulator state (buckets, queues, tables, …) without restarting the container, which is
@@ -410,7 +491,8 @@ handy when one container is shared across tests.
 The AWS module lives in `floci.aws` (`from floci.aws import FlociContainer`, `from floci.aws.config import
 S3Config`). The shorter `floci` and `floci.config` imports used throughout this README keep working as aliases.
 The Azure module lives in `floci.az` (`from floci.az import FlociAzContainer`, `from floci.az.config import
-BlobConfig`). Both are built on `floci.core`.
+BlobConfig`), the GCP module in `floci.gcp` (`from floci.gcp import FlociGcpContainer`, `from floci.gcp.config
+import GcsConfig`). All are built on `floci.core`.
 
 ### Connection details
 
@@ -441,6 +523,23 @@ BlobConfig`). Both are built on `floci.core`.
 | `get_table_endpoint()` | Table endpoint, `http://host:port/devstoreaccount1-table` |
 | `get_storage_connection_string()` | Connection string for the Azure Storage SDKs (Blob, Queue, Table) |
 
+`FlociGcpContainer` shares the same core methods and has these:
+
+| Method | Returns |
+|---|---|
+| `get_endpoint()` | `http://host:port` of the emulator |
+| `get_emulator_host()` | `host:port`, the form the `*_EMULATOR_HOST` variables take |
+| `get_emulator_env()` | The variables that point Google's SDKs at the emulator (see below) |
+| `get_project_id()` | Default project (`floci-local`; `with_project_id(...)` changes it, and any project ID is accepted) |
+| `get_https_endpoint()` | `https://host:port`, the same port; answers once TLS is enabled with `TlsConfig(enabled=True)` |
+| `get_tls_certificate()` | PEM certificate to trust for the HTTPS endpoint |
+
+`get_emulator_env()` holds `PUBSUB_EMULATOR_HOST`, `FIRESTORE_EMULATOR_HOST`, `DATASTORE_EMULATOR_HOST`,
+`SECRET_MANAGER_EMULATOR_HOST`, `FIREBASE_AUTH_EMULATOR_HOST`, `LOGGING_EMULATOR_HOST`, `KMS_EMULATOR_HOST` and
+`STORAGE_EMULATOR_HOST_GRPC` as `host:port`, `STORAGE_EMULATOR_HOST` as `http://host:port`, and
+`GOOGLE_CLOUD_PROJECT`. The Logging and KMS variables are a floci-gcp convention; Google's client libraries do not
+read them.
+
 ## Docker image tags
 
 By default `FlociContainer` runs the floating `floci/floci:latest` tag, so you always test against the current
@@ -458,7 +557,7 @@ FlociContainer(image="floci/floci:nightly")  # built from main every night
 | `floci/floci:nightly` | Built from `main` every night     |
 
 Every emulator publishes `latest`, `x.y.z` and `nightly` tags; `FlociAzContainer` defaults to
-`floci/floci-az:latest` and takes an image the same way.
+`floci/floci-az:latest`, `FlociGcpContainer` to `floci/floci-gcp:latest`, and both take an image the same way.
 
 ## Requirements
 

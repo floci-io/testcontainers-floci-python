@@ -17,3 +17,6 @@ TEST_IMAGE = pinned_image("floci/floci:")
 
 AZ_TEST_IMAGE = pinned_image("floci/floci-az:")
 """The pinned floci/floci-az tag every Azure integration test runs against."""
+
+GCP_TEST_IMAGE = pinned_image("floci/floci-gcp:")
+"""The pinned floci/floci-gcp tag every GCP integration test runs against."""
