@@ -1,6 +1,7 @@
 # Docker images the integration tests pin. The tests read each emulator's image from here
 # (tests/images.py) and CI pulls every line, so each tag is declared once.
 # One image:tag per line; '#' comments and blank lines are ignored. The library
-# defaults stay floci/floci:latest and floci/floci-az:latest.
+# defaults stay the floating latest tag of each image.
 floci/floci:2.2.0
 floci/floci-az:0.14.0
+floci/floci-gcp:0.10.0
