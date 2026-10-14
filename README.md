@@ -33,11 +33,12 @@ open-source local cloud emulators. `FlociContainer` starts a Floci (AWS) emulato
 and gives you an endpoint and credentials to point boto3 at, plus typed, per-service config dataclasses over the
 emulator's environment variables. `FlociAzContainer` does the same for the Floci Azure emulator, with a storage
 connection string and endpoints for the Azure SDKs, and `FlociGcpContainer` for the Floci GCP emulator, with the
-`*_EMULATOR_HOST` variables Google's SDKs read. No cloud account, no auth token.
+`*_EMULATOR_HOST` variables Google's SDKs read, and `FlociOciContainer` for the Floci OCI emulator, with a ready
+SDK config and signing key. No cloud account, no auth token.
 
 See the [Floci documentation](https://floci.io/floci/services/) for the full list of emulated AWS services, and
-[floci-az](https://github.com/floci-io/floci-az) and [floci-gcp](https://github.com/floci-io/floci-gcp) for the
-Azure and GCP ones.
+[floci-az](https://github.com/floci-io/floci-az), [floci-gcp](https://github.com/floci-io/floci-gcp) and
+[floci-oci](https://github.com/floci-io/floci-oci) for the Azure, GCP and OCI ones.
 
 ### The Floci emulators
 
@@ -50,7 +51,7 @@ like popcorn.
 | [floci](https://github.com/floci-io/floci)         | AWS   | 4566 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 | [floci-az](https://github.com/floci-io/floci-az)   | Azure | 4577 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 | [floci-gcp](https://github.com/floci-io/floci-gcp) | GCP   | 4588 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
-| [floci-oci](https://github.com/floci-io/floci-oci) | OCI   | 4599 | Planned                                                                    |
+| [floci-oci](https://github.com/floci-io/floci-oci) | OCI   | 4599 | ✅ [`testcontainers-floci`](https://pypi.org/project/testcontainers-floci/) |
 
 ## Installation
 
@@ -160,6 +161,45 @@ def test_bucket(monkeypatch: pytest.MonkeyPatch):
 A service without an emulator variable (BigQuery, Cloud Tasks, Cloud KMS, Cloud Logging, …) takes the endpoint
 when you build its client: `get_endpoint()` for REST, `get_emulator_host()` (`host:port`) for a plaintext gRPC
 channel. The Google client libraries are yours to install; this module does not depend on them.
+
+### OCI
+
+`FlociOciContainer`, in `floci.oci`, starts the Floci OCI emulator (`floci/floci-oci`). OCI SDKs sign every request
+with an API key; the emulator reads the tenancy and user from the signature and never verifies it, so the
+container hands out a throwaway RSA key. `get_config()` is a ready config for the OCI Python SDK:
+
+```python
+import oci
+from floci.oci import FlociOciContainer
+
+
+def test_bucket():
+    with FlociOciContainer() as floci:
+        client = oci.object_storage.ObjectStorageClient(
+            floci.get_config(), service_endpoint=floci.get_endpoint()
+        )
+        client.create_bucket(
+            floci.get_namespace(),
+            oci.object_storage.models.CreateBucketDetails(
+                name="uploads", compartment_id=floci.get_tenancy_id()
+            ),
+        )
+        client.put_object(floci.get_namespace(), "uploads", "hello.txt", b"hello")
+```
+
+Generating the key needs the [`cryptography`](https://pypi.org/project/cryptography/) package, which is not a
+dependency of this module. The `oci` SDK installs it; without the SDK, install `testcontainers-floci[oci]`, or
+pass a key of your own with `with_private_key_pem(...)`.
+
+For the OCI CLI, or an SDK that reads `~/.oci/config`, write the key and a profile to files:
+
+```python
+key_file = tmp_path / "floci_key.pem"
+key_file.write_text(floci.get_private_key_pem())
+config_file = tmp_path / "config"
+config_file.write_text(floci.get_config_file_contents(str(key_file), profile="FLOCI"))
+# oci --config-file <config_file> --profile FLOCI os ns get --endpoint <floci.get_endpoint()>
+```
 
 ## Service configuration
 
@@ -431,6 +471,36 @@ The method is named after the emulator's service token: `with_cloudsql_config`, 
 `with_env("FLOCI_GCP_SERVICES_<SERVICE>_<SETTING>", ...)`. TLS uses `TlsConfig` (`with_tls_config(...)`), also in
 `floci.gcp.config`.
 
+### OCI services
+
+OCI service configs live in `floci.oci.config` and work the same way on `FlociOciContainer`: an `enabled` flag
+each, and `mock` (default `False`) on the container-backed ones.
+
+```python
+from floci.oci import FlociOciContainer
+from floci.oci.config import FunctionsConfig, OkeConfig
+
+container = (
+    FlociOciContainer()
+    .with_functions_config(FunctionsConfig(mock=True))  # no Fn server container
+    .with_oke_config(OkeConfig(enabled=False))
+)
+```
+
+| Config class | OCI service | `mock` |
+|---|---|---|
+| `FunctionsConfig` | Functions | yes |
+| `IdentityConfig` | Identity and Access Management | |
+| `KmsConfig` | Key Management | |
+| `ObjectStorageConfig` | Object Storage | |
+| `OkeConfig` | Container Engine for Kubernetes | yes |
+| `QueueConfig` | Queue | |
+| `StreamingConfig` | Streaming | |
+| `VaultConfig` | Vault | |
+
+Any other emulator setting can be set with `with_env("FLOCI_OCI_SERVICES_<SERVICE>_<SETTING>", ...)`. TLS uses
+`TlsConfig` (`with_tls_config(...)`), also in `floci.oci.config`.
+
 ## Container options
 
 ```python
@@ -484,6 +554,9 @@ On GCP (`FlociGcpContainer`), GKE, Cloud SQL, Cloud Run, Managed Kafka and BigQu
 and not `mock`; BigQuery does not when `FLOCI_GCP_SERVICES_BIGQUERY_DUCK_URL` names a running DuckDB sidecar. The
 namespace variable is `FLOCI_GCP_DOCKER_RESOURCE_NAMESPACE`.
 
+On OCI (`FlociOciContainer`), Functions and OKE need the socket while enabled and not `mock`. The namespace
+variable is `FLOCI_OCI_DOCKER_RESOURCE_NAMESPACE`.
+
 #### Resetting state
 
 `reset()` wipes all emulator state (buckets, queues, tables, …) without restarting the container, which is
@@ -495,7 +568,8 @@ The AWS module lives in `floci.aws` (`from floci.aws import FlociContainer`, `fr
 S3Config`). The shorter `floci` and `floci.config` imports used throughout this README keep working as aliases.
 The Azure module lives in `floci.az` (`from floci.az import FlociAzContainer`, `from floci.az.config import
 BlobConfig`), the GCP module in `floci.gcp` (`from floci.gcp import FlociGcpContainer`, `from floci.gcp.config
-import GcsConfig`). All are built on `floci.core`.
+import GcsConfig`), the OCI module in `floci.oci` (`from floci.oci import FlociOciContainer`, `from
+floci.oci.config import ObjectStorageConfig`). All are built on `floci.core`.
 
 ### Connection details
 
@@ -543,6 +617,21 @@ import GcsConfig`). All are built on `floci.core`.
 `GOOGLE_CLOUD_PROJECT`. The Logging and KMS variables are a floci-gcp convention; Google's client libraries do not
 read them.
 
+`FlociOciContainer` shares the same core methods and has these:
+
+| Method | Returns |
+|---|---|
+| `get_endpoint()` | `http://host:port` of the emulator, the `service_endpoint` of every client |
+| `get_region()` | Region (`us-ashburn-1`; `with_region(...)` changes it) |
+| `get_tenancy_id()` | Tenancy OCID, also the root compartment (`with_tenancy_id(...)` changes it) |
+| `get_namespace()` | Object Storage namespace (`floci-local`; `with_namespace(...)` changes it) |
+| `get_user_id()` | User OCID to sign as |
+| `get_fingerprint()` | API key fingerprint to sign with (a placeholder; the emulator checks none) |
+| `get_private_key_pem()` | The container's throwaway RSA signing key, PKCS#8 PEM, generated on first use |
+| `get_config()` | Config dict for the OCI Python SDK, with the key inline as `key_content` |
+| `get_config_file_contents(key_file, profile="DEFAULT")` | One profile of an OCI config file, naming the key at `key_file` |
+| `get_https_endpoint()` | `https://host:port`, the same port; answers once TLS is enabled with `TlsConfig(enabled=True)` |
+
 ## Docker image tags
 
 By default `FlociContainer` runs the floating `floci/floci:latest` tag, so you always test against the current
@@ -560,7 +649,8 @@ FlociContainer(image="floci/floci:nightly")  # built from main every night
 | `floci/floci:nightly` | Built from `main` every night     |
 
 Every emulator publishes `latest`, `x.y.z` and `nightly` tags; `FlociAzContainer` defaults to
-`floci/floci-az:latest`, `FlociGcpContainer` to `floci/floci-gcp:latest`, and both take an image the same way.
+`floci/floci-az:latest`, `FlociGcpContainer` to `floci/floci-gcp:latest`, `FlociOciContainer` to
+`floci/floci-oci:latest`, and each takes an image the same way.
 
 ## Requirements
 

@@ -20,3 +20,6 @@ AZ_TEST_IMAGE = pinned_image("floci/floci-az:")
 
 GCP_TEST_IMAGE = pinned_image("floci/floci-gcp:")
 """The pinned floci/floci-gcp tag every GCP integration test runs against."""
+
+OCI_TEST_IMAGE = pinned_image("floci/floci-oci:")
+"""The pinned floci/floci-oci tag every OCI integration test runs against."""

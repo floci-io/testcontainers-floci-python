@@ -1,6 +1,6 @@
 # testcontainers-floci-python
 
-Testcontainers module for [Floci](https://github.com/floci-io) — the open-source local cloud emulators (AWS in `floci.aws`, Azure in `floci.az`, GCP in `floci.gcp`).
+Testcontainers module for [Floci](https://github.com/floci-io) — the open-source local cloud emulators (AWS in `floci.aws`, Azure in `floci.az`, GCP in `floci.gcp`, OCI in `floci.oci`).
 
 ## Project layout
 
@@ -10,6 +10,7 @@ floci/
   aws/                 # AWS descriptor, FlociContainer, config/ (one dataclass per AWS service)
   az/                  # AZ descriptor, FlociAzContainer, config/ (one dataclass per Azure service)
   gcp/                 # GCP descriptor, FlociGcpContainer, config/ (one dataclass per GCP service)
+  oci/                 # OCI descriptor, FlociOciContainer, config/ (one dataclass per OCI service)
   __init__.py          # alias of floci.aws (FlociContainer)
   container.py         # alias of floci.aws.container
   config/              # alias of floci.aws.config
@@ -19,6 +20,7 @@ tests/
   test_core.py         # core + AWS socket detection
   test_az.py           # Azure unit + integration tests
   test_gcp.py          # GCP unit + integration tests
+  test_oci.py          # OCI unit + integration tests
 ```
 
 ## Setup
@@ -60,7 +62,7 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - **Fluent API**: `FlociContainer` methods return `self` typed as `"FlociContainer"` so callers can chain configuration calls.
 - **No bare `except`**: catch specific exception types. Use `Exception` only as a last resort and always bind it (`except Exception as exc`).
 - **No mutable default arguments**: use `None` and assign inside the function.
-- **Layout**: `floci/core/` is the cloud-independent part (`CloudDescriptor`, `FlociBaseContainer`: readiness, Docker socket detection, network, namespace, log level, reset). Each cloud is a package on top of it: `floci/aws/` (`container.py` with the `AWS` descriptor and `FlociContainer`, `config/services.py`, `config/top_level.py`) `floci/az/` (`container.py` with the `AZ` descriptor and `FlociAzContainer`, `config/`) and `floci/gcp/` (the `GCP` descriptor and `FlociGcpContainer`, same shape). `floci/__init__.py`, `floci/container.py` and `floci/config/` are compatibility aliases of `floci.aws`; keep them re-exporting, never put code there.
+- **Layout**: `floci/core/` is the cloud-independent part (`CloudDescriptor`, `FlociBaseContainer`: readiness, Docker socket detection, network, namespace, log level, reset). Each cloud is a package on top of it: `floci/aws/` (`container.py` with the `AWS` descriptor and `FlociContainer`, `config/services.py`, `config/top_level.py`) `floci/az/` (`container.py` with the `AZ` descriptor and `FlociAzContainer`, `config/`) `floci/gcp/` (the `GCP` descriptor and `FlociGcpContainer`) and `floci/oci/` (the `OCI` descriptor and `FlociOciContainer`), all the same shape. `floci/__init__.py`, `floci/container.py` and `floci/config/` are compatibility aliases of `floci.aws`; keep them re-exporting, never put code there.
 - **Dataclasses for config**: AWS service configuration lives in `floci/aws/config/services.py` as `@dataclass` classes, each with an `apply_to(container)` method (and `apply_exposed_ports` when the service publishes ports). Keep them in that file.
 - Do not use `os.path`; prefer `pathlib` instead`
 
@@ -68,7 +70,7 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 
 - Unit tests must not require Docker and must not start a container. They test construction, fluent methods, and config application only.
 - Integration tests are marked `@pytest.mark.integration` and use `with FlociContainer() as floci:` as a context manager.
-- Use `boto3` in integration tests to verify real AWS API behaviour, the Azure SDK (`azure-storage-*`) for Azure, and `google-cloud-storage` or plain HTTP for GCP. SDKs are dev dependencies only.
+- Use `boto3` in integration tests to verify real AWS API behaviour, the Azure SDK (`azure-storage-*`) for Azure, `google-cloud-storage` or plain HTTP for GCP, and the `oci` SDK for OCI. SDKs are dev dependencies only.
 - Integration tests run on the pinned images in `.github/docker-images.txt` (`tests/images.py`), never on `latest`.
 - Do not mock `DockerContainer` internals — test the public interface of `FlociContainer`.
 
@@ -136,3 +138,25 @@ CI runs all three on every PR. Fix lint and type errors before committing.
 - Adding a GCP service: the dataclass, `SERVICE_CONFIGS` and `__all__` in `floci/gcp/config/__init__.py`, a
   `with_<token>_config` method on `FlociGcpContainer`, a row in `SERVICES` in `tests/test_gcp.py`, and a
   `SocketService` in `GCP.socket_services` if it spawns containers.
+
+## OCI (`floci.oci`)
+
+- No Java module yet either; the emulator is the source of truth (`floci-oci`, `config/EmulatorConfig.java`, at
+  the pinned tag). Same shape as GCP: `OciServiceConfig` / `OciMockableServiceConfig` (`MOCK`), `with_<token>_config`.
+- Socket services are the two mockable ones, Functions and OKE.
+- Credentials: the emulator parses the request signature for the tenancy and user and never verifies it
+  (`auth.require-signature` only demands a well-formed one). The container therefore hands out the user OCID and
+  fingerprint from the emulator's docs and a throwaway RSA key (`get_private_key_pem()`, PKCS#8), generated on
+  first use and kept per container object.
+- **`cryptography` is not a runtime dependency.** The standard library cannot generate RSA keys, so
+  `floci/oci/container.py` imports `cryptography` inside the generator and raises an `ImportError` that names the
+  `testcontainers-floci[oci]` extra. Nothing else in the package may import it at module level; AWS, Azure and GCP
+  users must not pay for it. `with_private_key_pem(...)` is the way out without it.
+- `get_config()` (the Python SDK's dict, `key_content` inline) is specific to this language; the family helper is
+  `get_config_file_contents(key_file, profile)`. The emulator has no TLS-certificate endpoint, so there is no
+  `get_tls_certificate()` here.
+- Emulator bug in 0.4.2: with `FLOCI_OCI_AUTH_REQUIRE_SIGNATURE=true` the paths meant to be exempt (`/health`,
+  `/_floci-oci/*`, `/p/*`) answer 401 as well, so the readiness wait never passes and `reset()` is rejected. The
+  strict `xfail` test in `tests/test_oci.py` holds the evidence and starts failing once a pin fixes it: then drop
+  the marker.
+- Adding an OCI service: as for GCP, in `floci/oci/` and `tests/test_oci.py`.

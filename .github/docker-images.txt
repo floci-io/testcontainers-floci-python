@@ -5,3 +5,4 @@
 floci/floci:2.2.0
 floci/floci-az:0.14.0
 floci/floci-gcp:0.10.0
+floci/floci-oci:0.4.2
