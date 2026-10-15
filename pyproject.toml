@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "testcontainers-floci"
 version = "0.3.0"
-description = "Testcontainers module for Floci — the open-source local AWS emulator"
+description = "Testcontainers module for Floci, the open-source local cloud emulators for AWS, Azure, GCP and OCI"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
