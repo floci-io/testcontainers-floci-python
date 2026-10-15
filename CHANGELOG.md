@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/floci-io/testcontainers-floci-python/compare/v0.3.0...v0.4.0) (2026-10-15)
+
+
+### Features
+
+* **az:** add the Azure module floci.az with FlociAzContainer ([#21](https://github.com/floci-io/testcontainers-floci-python/issues/21)) ([91782ac](https://github.com/floci-io/testcontainers-floci-python/commit/91782ac836529592f956addb881b0b69a2be1637))
+* **gcp:** add the GCP module floci.gcp with FlociGcpContainer ([#23](https://github.com/floci-io/testcontainers-floci-python/issues/23)) ([aab62be](https://github.com/floci-io/testcontainers-floci-python/commit/aab62be0f74247536804641edb95e2f1f737d358))
+* **oci:** add the OCI module floci.oci with FlociOciContainer ([#25](https://github.com/floci-io/testcontainers-floci-python/issues/25)) ([3429485](https://github.com/floci-io/testcontainers-floci-python/commit/3429485dfd2ef8f28f9fcf7b7aa4ab387aef9fb9))
+
 ## [0.3.0](https://github.com/floci-io/testcontainers-floci-python/compare/0.2.0...v0.3.0) (2026-10-10)
 
 
