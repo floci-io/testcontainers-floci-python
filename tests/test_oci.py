@@ -490,7 +490,10 @@ def test_the_emulator_reads_the_tenancy_from_the_signature(floci: FlociOciContai
 
     other_tenancy = "ocid1.tenancy.oc1..othertenancy" + uuid.uuid4().hex
     other = object_storage(floci, {**floci.get_config(), "tenancy": other_tenancy})
-    listed = other.list_buckets(floci.get_namespace(), other_tenancy).data
+    # Each tenancy has its own namespace, and the emulator answers 404 for anyone else's.
+    other_namespace = other.get_namespace().data
+    assert other_namespace != floci.get_namespace()
+    listed = other.list_buckets(other_namespace, other_tenancy).data
     assert bucket not in [b.name for b in listed]
 
     # An unsigned request falls back to the default tenancy, the one the helpers sign as.
