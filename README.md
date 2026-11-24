@@ -684,7 +684,7 @@ Integration tests need Docker running. See [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ## Community
 
-- 💬 [Slack](https://join.slack.com/t/floci/shared_invite/zt-3tjn02s3q-A00kEjJ1cZxsg_imTfy6Cw): quick questions and community chat
+- 💬 [Slack](https://floci.io/slack): quick questions and community chat
 - 🗣️ [GitHub Discussions](https://github.com/orgs/floci-io/discussions): ideas, design tradeoffs, and proposals
 - [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [MAINTAINERS.md](MAINTAINERS.md)
 

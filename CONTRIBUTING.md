@@ -81,7 +81,7 @@ Once your current pull requests are reviewed, merged, or closed, you are welcome
 
 ## Questions and discussion
 
-- 💬 **[Slack](https://join.slack.com/t/floci/shared_invite/zt-3tjn02s3q-A00kEjJ1cZxsg_imTfy6Cw)**: quick questions and community chat.
+- 💬 **[Slack](https://floci.io/slack)**: quick questions and community chat.
 - 🗣️ **[GitHub Discussions](https://github.com/orgs/floci-io/discussions)**: feature ideas, design tradeoffs, and proposals.
 
 By contributing, you agree to abide by the project
