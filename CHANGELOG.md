@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/floci-io/testcontainers-floci-python/compare/v0.4.0...v0.4.1) (2026-11-24)
+
+
+### Documentation
+
+* point Slack links at floci.io/slack ([#44](https://github.com/floci-io/testcontainers-floci-python/issues/44)) ([a9eafff](https://github.com/floci-io/testcontainers-floci-python/commit/a9eafff95471fa6e90900c8ccd11f681b26326b6))
+
 ## [0.4.0](https://github.com/floci-io/testcontainers-floci-python/compare/v0.3.0...v0.4.0) (2026-10-15)
 
 
